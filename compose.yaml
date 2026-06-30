@@ -47,7 +47,6 @@ x-daemonless:
     volumes:
       /config: "Config and logs storage (nginx.conf, log/, stats/)."
       /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 10G)."
-      /etc/resolv.conf: "Host DNS resolver config (read-only). Nameservers are extracted at startup for nginx resolver directive."
     ports:
       80: "HTTP — pkg clients point their FreeBSD.conf url here"
       7890: "GoAccess stats dashboard (HTML) — enabled via ENABLE_STATS=true"

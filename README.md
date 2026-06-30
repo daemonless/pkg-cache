@@ -188,7 +188,7 @@ Access at: `http://localhost:80`
 |------|-------------|
 | `/config` | Config and logs storage (nginx.conf, log/, stats/). |
 | `/cache` | Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 10G). |
-| `/etc/resolv.conf` | Host DNS resolver config (read-only). Nameservers are extracted at startup for nginx resolver directive. |
+| `/etc/resolv.conf` |  |
 
 ### Ports
 
