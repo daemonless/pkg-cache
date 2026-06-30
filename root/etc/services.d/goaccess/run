@@ -1,0 +1,42 @@
+#!/bin/sh
+# Periodic GoAccess stats dashboard — regenerates every 30s.
+# Set ENABLE_STATS=true to activate; otherwise this service idles.
+[ "${ENABLE_STATS:-false}" = "true" ] || exec tail -f /dev/null
+
+mkdir -p /config/stats
+cp /defaults/goaccess-custom.css /config/stats/custom.css
+
+while true; do
+    s6-setuidgid bsd goaccess /config/log/goaccess.log \
+        -o /config/stats/index.html \
+        --log-format='%h - - [%d:%t %^] "%r" %s %b %C' \
+        --date-format='%d/%b/%Y' \
+        --time-format='%H:%M:%S' \
+        --html-custom-css=/config/stats/custom.css \
+        --html-prefs='{"layout":"horizontal","perPage":10,"showTables":true,"theme":"bright"}' \
+        --ignore-panel=BROWSERS \
+        --ignore-panel=OS \
+        --ignore-panel=REFERRERS \
+        --ignore-panel=REFERRING_SITES \
+        --ignore-panel=KEYPHRASES \
+        --ignore-panel=STATIC_REQUESTS \
+        --ignore-panel=NOT_FOUND \
+        --ignore-panel=REMOTE_USER \
+        --ignore-panel=GEO_LOCATION \
+        --no-global-config \
+        2>/dev/null
+    # Rename generic web-analytics terms to pkg-cache–appropriate ones.
+    sed -i '' \
+        -e 's/"Unique Visitors"/"Unique Clients"/g' \
+        -e 's/"label": "Visitors"/"label": "Clients"/g' \
+        -e 's/"label":"Visitors"/"label":"Clients"/g' \
+        -e 's/"label": "Hits\/Visitors"/"label": "Requests\/Clients"/g' \
+        -e 's/"label":"Hits\/Visitors"/"label":"Requests\/Clients"/g' \
+        -e 's/"label": "Hits"/"label": "Requests"/g' \
+        -e 's/"label":"Hits"/"label":"Requests"/g' \
+        -e 's/Visitor Hostnames and IPs/Client Hostnames and IPs/g' \
+        -e 's|</span>visitors</td>|</span>clients</td>|g' \
+        -e 's|</span>hits</td>|</span>requests</td>|g' \
+        /config/stats/index.html 2>/dev/null
+    sleep 30
+done

@@ -1,0 +1,75 @@
+name: pkg-cache
+
+x-daemonless:
+  title: "FreeBSD pkg cache"
+  icon: ":material-package-variant-closed:"
+  category: "Infrastructure"
+  description: "nginx caching proxy for pkg.FreeBSD.org — speeds up FreeBSD package fetches across image builds and insulates them from upstream rate limits/outages."
+  upstream_url: "https://github.com/daemonless/pkg-cache"
+  web_url: "https://daemonless.io/guides/freebsd-pkg-cache/"
+  freshports_url: ""
+  user: "bsd"
+  mlock: false
+  community: "Discord:https://discord.gg/Kb9tkhecZT"
+  appjail: true
+  notes: |
+    ### Pointing clients at the cache
+
+    On a build host (or any FreeBSD box), drop in
+    `/usr/local/etc/pkg/repos/FreeBSD.conf`:
+
+    ```ini
+    FreeBSD: {
+      url: "pkg+http://<cache-host>/${ABI}/quarterly",
+      mirror_type: "none",
+      signature_type: "fingerprints",
+      fingerprints: "/usr/share/keys/pkg",
+      enabled: yes
+    }
+    ```
+
+    Then `pkg update` fetches through the cache — first pull is a MISS,
+    everything after is a HIT, and package signatures still verify end-to-end.
+    Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 10G).
+
+  docs:
+    env:
+      TZ: "Timezone for the container"
+      PKG_UPSTREAM:
+        desc: "FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org."
+        default: "pkg.FreeBSD.org"
+      PKG_CACHE_SIZE:
+        desc: "Max on-disk cache size (nginx max_size), e.g. 50g, 100g, 500g. Keep the /cache volume at least this big."
+        default: "10g"
+      ENABLE_STATS:
+        desc: "Set to true to enable the GoAccess real-time stats dashboard on port 7890."
+        default: "false"
+    volumes:
+      /config: "Config and logs storage (nginx.conf, log/, stats/)."
+      /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 10G)."
+      /etc/resolv.conf: "Host DNS resolver config (read-only). Nameservers are extracted at startup for nginx resolver directive."
+    ports:
+      80: "HTTP — pkg clients point their FreeBSD.conf url here"
+      7890: "GoAccess stats dashboard (HTML) — enabled via ENABLE_STATS=true"
+
+services:
+  pkg-cache:
+    image: ghcr.io/daemonless/pkg-cache:latest
+    container_name: pkg-cache
+    restart: unless-stopped
+
+    environment:
+      - TZ=UTC
+      - PKG_UPSTREAM=pkg.FreeBSD.org
+      - PKG_CACHE_SIZE=10g
+      - ENABLE_STATS=false
+
+    volumes:
+      - /containers/pkg-cache:/config
+      - /containers/pkg-cache/cache:/cache
+      - /etc/resolv.conf:/etc/resolv.conf:ro
+
+    ports:
+      - 80:80
+      - 7890:7890
+

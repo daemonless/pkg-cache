@@ -1,0 +1,15 @@
+/* Hide footer cruft */
+.powered { display: none !important; }
+
+/* Tighten panel spacing */
+.panel-wrap { margin-bottom: 10px; }
+aside#overall .row { margin-bottom: 0; }
+
+/* Hide Static Requests panel, its chart, and nav entry */
+div:has(h2#static_requests),
+#chart-static_requests,
+a[href="#static_requests"] { display: none !important; }
+
+/* Hide dark-blue and dark-purple themes from the settings dropdown */
+li:has(.theme-dark-blue),
+li:has(.theme-dark-purple) { display: none !important; }

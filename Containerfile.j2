@@ -1,0 +1,39 @@
+ARG BASE_VERSION=latest
+FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
+
+ARG FREEBSD_ARCH=amd64
+
+LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
+      org.opencontainers.image.description="nginx caching proxy for pkg.FreeBSD.org — speeds up FreeBSD package fetches across image builds." \
+      org.opencontainers.image.source="https://github.com/daemonless/pkg-cache" \
+      org.opencontainers.image.url="https://daemonless.io/guides/freebsd-pkg-cache/" \
+      org.opencontainers.image.licenses="BSD-2-Clause" \
+      org.opencontainers.image.vendor="daemonless" \
+      org.opencontainers.image.authors="daemonless" \
+      io.daemonless.category="Infrastructure" \
+      io.daemonless.port="80" \
+      io.daemonless.arch="${FREEBSD_ARCH}"
+
+# Record the nginx version that backs the cache (for the version/status page).
+RUN mkdir -p /app && \
+    { pkg query '%v' nginx > /app/version 2>/dev/null || echo "unknown" > /app/version; }
+
+# GoAccess for the optional real-time stats dashboard (ENABLE_STATS=true).
+RUN pkg install -y sysutils/goaccess && pkg clean -ay && rm -rf /var/cache/pkg/*
+
+# Copy root filesystem (nginx.conf + the cache-dir cont-init). The nginx s6
+# service comes from nginx-base; this image only supplies the proxy config.
+COPY root/ /
+
+RUN chmod +x \
+    /etc/cont-init.d/20-pkg-cache-init \
+    /etc/services.d/goaccess/run \
+    /etc/services.d/pkg-cache-access-log/run \
+    /etc/services.d/pkg-cache-error-log/run
+
+EXPOSE 80 7890
+
+# Config, log, and cache storage
+VOLUME ["/config", "/cache"]
+
+
