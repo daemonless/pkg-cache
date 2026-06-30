@@ -1,6 +1,8 @@
 ARG BASE_VERSION=latest
 FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
 
+ARG APP_VER=1.0
+
 ARG FREEBSD_ARCH=amd64
 
 LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
@@ -14,9 +16,7 @@ LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
       io.daemonless.port="80" \
       io.daemonless.arch="${FREEBSD_ARCH}"
 
-# Record the nginx version that backs the cache (for the version/status page).
-RUN mkdir -p /app && \
-    { pkg query '%v' nginx > /app/version 2>/dev/null || echo "unknown" > /app/version; }
+RUN mkdir -p /app && echo "${APP_VER}" > /app/version
 
 # GoAccess for the optional real-time stats dashboard (ENABLE_STATS=true).
 RUN pkg install -y sysutils/goaccess && pkg clean -ay && rm -rf /var/cache/pkg/*

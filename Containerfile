@@ -9,6 +9,8 @@ FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
 ARG PKG_CACHE_URL=""
 RUN if [ -n "$PKG_CACHE_URL" ]; then cp /etc/pkg/FreeBSD.conf /etc/pkg/FreeBSD.conf.up; sed -i "" -e "/^FreeBSD-Ports: {/,/^}/s,pkg+https*://pkg.FreeBSD.org,http://$PKG_CACHE_URL," -e '/^FreeBSD-Ports: {/,/^}/s,mirror_type: *"srv",mirror_type: "none",' /etc/pkg/FreeBSD.conf; fi
 
+ARG APP_VER=1.0
+
 ARG FREEBSD_ARCH=amd64
 
 LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
@@ -22,9 +24,7 @@ LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
       io.daemonless.port="80" \
       io.daemonless.arch="${FREEBSD_ARCH}"
 
-# Record the nginx version that backs the cache (for the version/status page).
-RUN mkdir -p /app && \
-    { pkg query '%v' nginx > /app/version 2>/dev/null || echo "unknown" > /app/version; }
+RUN mkdir -p /app && echo "${APP_VER}" > /app/version
 
 # GoAccess for the optional real-time stats dashboard (ENABLE_STATS=true).
 RUN pkg install -y sysutils/goaccess && pkg clean -ay && rm -rf /var/cache/pkg/*
