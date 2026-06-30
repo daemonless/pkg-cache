@@ -1,18 +1,27 @@
 name: pkg-cache
 
 x-daemonless:
-  title: "FreeBSD pkg cache"
+  title: "Daemonless pkg cache"
   icon: ":material-package-variant-closed:"
   category: "Infrastructure"
-  description: "nginx caching proxy for pkg.FreeBSD.org — speeds up FreeBSD package fetches across image builds and insulates them from upstream rate limits/outages."
+  description: "Managed FreeBSD pkg caching appliance — proxies pkg.FreeBSD.org to speed up package fetches across image builds and insulate them from upstream rate limits/outages."
   upstream_url: "https://github.com/daemonless/pkg-cache"
-  web_url: "https://daemonless.io/guides/freebsd-pkg-cache/"
+  web_url: "https://daemonless.io/images/pkg-cache/"
   freshports_url: ""
   user: "bsd"
   mlock: false
+  upstream_binary: false
   community: "Discord:https://discord.gg/Kb9tkhecZT"
   appjail: true
   notes: |
+    ### How it works
+
+    Package files (`*.pkg`) are cached for 30 days — their filenames are
+    versioned and immutable, so a HIT is always safe. Catalog metadata
+    (`meta.conf`, `packagesite.*`, `data.*`) is cached for 1 minute instead,
+    so `pkg` keeps resolving the latest updates without serving stale
+    catalogs.
+
     ### Pointing clients at the cache
 
     On a build host (or any FreeBSD box), drop in
@@ -30,7 +39,15 @@ x-daemonless:
 
     Then `pkg update` fetches through the cache — first pull is a MISS,
     everything after is a HIT, and package signatures still verify end-to-end.
-    Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 10G).
+    No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
+
+    Inspired by [this video](https://www.youtube.com/watch?v=zyJ1s6eu0l8).
+
+  readme:
+    version_tags: |
+      | Tag | Description | Best For |
+      | :--- | :--- | :--- |
+      | `latest` | **daemonless Appliance**. Managed FreeBSD pkg cache proxy built on nginx-base. | Shared package cache for daemonless builds and FreeBSD hosts. |
 
   docs:
     env:
@@ -39,14 +56,15 @@ x-daemonless:
         desc: "FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org."
         default: "pkg.FreeBSD.org"
       PKG_CACHE_SIZE:
-        desc: "Max on-disk cache size (nginx max_size), e.g. 50g, 100g, 500g. Keep the /cache volume at least this big."
-        default: "10g"
+        desc: "Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big."
+        default: "50g"
       ENABLE_STATS:
         desc: "Set to true to enable the GoAccess real-time stats dashboard on port 7890."
         default: "false"
     volumes:
-      /config: "Config and logs storage (nginx.conf, log/, stats/)."
-      /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 10G)."
+      /config: "Logs and generated stats storage (log/, stats/). The nginx config is appliance-managed at startup."
+      /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use)."
+      /etc/resolv.conf: "Host DNS resolver config. Optional but recommended so upstream pkg resolution matches the host."
     ports:
       80: "HTTP — pkg clients point their FreeBSD.conf url here"
       7890: "GoAccess stats dashboard (HTML) — enabled via ENABLE_STATS=true"
@@ -60,7 +78,7 @@ services:
     environment:
       - TZ=UTC
       - PKG_UPSTREAM=pkg.FreeBSD.org
-      - PKG_CACHE_SIZE=10g
+      - PKG_CACHE_SIZE=50g
       - ENABLE_STATS=false
 
     volumes:

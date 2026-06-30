@@ -1,32 +1,30 @@
 #!/bin/sh
-# Ensure config, cache, and log directories exist and are writable by the nginx worker user.
-mkdir -p /config/log /config/stats /cache
+# Render and start a managed daemonless pkg-cache appliance config.
+mkdir -p /config/log /config/stats /cache /run/pkg-cache
+cp /defaults/nginx.conf /run/pkg-cache/nginx.conf
 
-# Copy default config if it doesn't exist yet
-if [ ! -f /config/nginx.conf ]; then
-    cp /defaults/nginx.conf /config/nginx.conf
-fi
-
-# Apply configurable settings to nginx.conf.
-SIZE="${PKG_CACHE_SIZE:-10g}"
+SIZE="${PKG_CACHE_SIZE:-50g}"
 UPSTREAM="${PKG_UPSTREAM:-pkg.FreeBSD.org}"
-RESOLVER=$(grep '^nameserver' /etc/resolv.conf 2>/dev/null | awk '{print $2}' | tr '\n' ' ' | sed 's/ $//')
+RESOLVER="${PKG_RESOLVER:-}"
+if [ -z "${RESOLVER}" ]; then
+    RESOLVER=$(awk "/^nameserver[ \t]+/ {print \$2}" /etc/resolv.conf 2>/dev/null | tr "\n" " " | sed "s/ $//")
+fi
 RESOLVER="${RESOLVER:-1.1.1.1 8.8.8.8}"
-sed -i '' "s/max_size=[0-9]*[kKmMgG]/max_size=${SIZE}/" /config/nginx.conf
-sed -i '' "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" /config/nginx.conf
-sed -i '' "s/PKG_RESOLVER/${RESOLVER}/" /config/nginx.conf
 
-# Pre-create log files so they are owned by bsd (worker process) and not root
+sed -i "" "s/max_size=[^ ;]*/max_size=${SIZE}/" /run/pkg-cache/nginx.conf
+sed -i "" "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" /run/pkg-cache/nginx.conf
+sed -i "" "s/PKG_RESOLVER/${RESOLVER}/" /run/pkg-cache/nginx.conf
+
+# Pre-create log files so they are owned by bsd (worker process) and not root.
 touch /config/log/access.log /config/log/error.log /config/log/goaccess.log
-chown -R bsd:bsd /config /cache
+chown -R bsd:bsd /config /cache /run/pkg-cache
 
-# Point Nginx at /config/nginx.conf
-ln -sf /config/nginx.conf /usr/local/etc/nginx/nginx.conf
+# Point nginx at the generated runtime config.
+ln -sf /run/pkg-cache/nginx.conf /usr/local/etc/nginx/nginx.conf
 
-# Legacy compat: symlink /data -> /cache if someone still mounts /data
+# Legacy compat: symlink /data -> /cache if someone still mounts /data.
 if [ ! -d /data ]; then
     ln -sf /cache /data
 fi
 
-echo "[pkg-cache] upstream=${UPSTREAM} resolver=${RESOLVER} max_size=${SIZE} config=/config/nginx.conf cache=/cache"
-
+echo "[pkg-cache] upstream=${UPSTREAM} resolver=${RESOLVER} max_size=${SIZE} config=/run/pkg-cache/nginx.conf cache=/cache"

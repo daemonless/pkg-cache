@@ -6,22 +6,22 @@
 
 ARG BASE_VERSION=latest
 FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
-ARG PKG_CACHE_URL=""
-RUN if [ -n "$PKG_CACHE_URL" ]; then cp /etc/pkg/FreeBSD.conf /etc/pkg/FreeBSD.conf.up; sed -i "" -e "/^FreeBSD-Ports: {/,/^}/s,pkg+https*://pkg.FreeBSD.org,http://$PKG_CACHE_URL," -e '/^FreeBSD-Ports: {/,/^}/s,mirror_type: *"srv",mirror_type: "none",' /etc/pkg/FreeBSD.conf; fi
 
-ARG APP_VER=1.0
+ARG APP_VER=1.1
 
 ARG FREEBSD_ARCH=amd64
 
-LABEL org.opencontainers.image.title="FreeBSD pkg cache" \
-      org.opencontainers.image.description="nginx caching proxy for pkg.FreeBSD.org — speeds up FreeBSD package fetches across image builds." \
+LABEL org.opencontainers.image.title="Daemonless pkg cache" \
+      org.opencontainers.image.description="Managed FreeBSD pkg caching appliance — speeds up FreeBSD package fetches across image builds." \
       org.opencontainers.image.source="https://github.com/daemonless/pkg-cache" \
-      org.opencontainers.image.url="https://daemonless.io/guides/freebsd-pkg-cache/" \
+      org.opencontainers.image.url="https://daemonless.io/images/pkg-cache/" \
       org.opencontainers.image.licenses="BSD-2-Clause" \
       org.opencontainers.image.vendor="daemonless" \
       org.opencontainers.image.authors="daemonless" \
       io.daemonless.category="Infrastructure" \
       io.daemonless.port="80" \
+      io.daemonless.volumes="/config,/cache" \
+      io.daemonless.healthcheck-url="http://localhost:80/healthz" \
       io.daemonless.arch="${FREEBSD_ARCH}"
 
 RUN mkdir -p /app && echo "${APP_VER}" > /app/version
@@ -29,8 +29,8 @@ RUN mkdir -p /app && echo "${APP_VER}" > /app/version
 # GoAccess for the optional real-time stats dashboard (ENABLE_STATS=true).
 RUN pkg install -y sysutils/goaccess && pkg clean -ay && rm -rf /var/cache/pkg/*
 
-# Copy root filesystem (nginx.conf + the cache-dir cont-init). The nginx s6
-# service comes from nginx-base; this image only supplies the proxy config.
+# Copy appliance root filesystem. The nginx s6 service comes from nginx-base;
+# this image renders the managed proxy config at startup.
 COPY root/ /
 
 RUN chmod +x \
@@ -41,8 +41,6 @@ RUN chmod +x \
 
 EXPOSE 80 7890
 
-# Config, log, and cache storage
+# Logs, generated stats, and cache storage
 VOLUME ["/config", "/cache"]
 
-
-RUN if [ -f /etc/pkg/FreeBSD.conf.up ]; then mv /etc/pkg/FreeBSD.conf.up /etc/pkg/FreeBSD.conf; fi

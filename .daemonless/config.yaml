@@ -9,7 +9,8 @@ build:
       containerfile: Containerfile
 
 cit:
-  mode: health
+  mode: screenshot
   port: 80
-  health: /
+  health: /healthz
   puid: false
+  ready: "\\[pkg-cache\\]"
