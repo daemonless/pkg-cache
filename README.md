@@ -213,7 +213,7 @@ On a build host (or any FreeBSD box), drop in
 
 ```ini
 FreeBSD: {
-  url: "pkg+http://<cache-host>/${ABI}/quarterly",
+  url: "http://<cache-host>/${ABI}/quarterly",
   mirror_type: "none",
   signature_type: "fingerprints",
   fingerprints: "/usr/share/keys/pkg",
@@ -221,8 +221,19 @@ FreeBSD: {
 }
 ```
 
+Use plain `http://`, not `pkg+http://` — pkg on FreeBSD 15 rejects the
+`pkg+` scheme unless `mirror_type` is `srv`.
+
 Then `pkg update` fetches through the cache — first pull is a MISS,
 everything after is a HIT, and package signatures still verify end-to-end.
+
+`pkg audit` can use the cache too — the appliance proxies the FreeBSD
+vulnerability database at `/vuxml/`:
+
+```sh
+echo 'VULNXML_SITE = "http://<cache-host>/vuxml/vuln.xml.xz";' >> /usr/local/etc/pkg.conf
+```
+
 No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
 
 Inspired by [this video](https://www.youtube.com/watch?v=zyJ1s6eu0l8).
