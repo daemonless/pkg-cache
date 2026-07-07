@@ -40,6 +40,7 @@ services:
       - PKG_UPSTREAM=pkg.FreeBSD.org  # FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org.
       - PKG_CACHE_SIZE=50g  # Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big.
       - ENABLE_STATS=false  # Set to true to enable the GoAccess real-time stats dashboard on port 7890.
+      - SKIP_CHOWN=true  # Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts.
     volumes:
       - "/path/to/containers/pkg-cache:/config"
       - "/path/to/containers/pkg-cache/cache:/cache"
@@ -61,6 +62,7 @@ TZ=UTC
 PKG_UPSTREAM=pkg.FreeBSD.org
 PKG_CACHE_SIZE=50g
 ENABLE_STATS=false
+SKIP_CHOWN=true
 ```
 
 **appjail-director.yml**:
@@ -85,6 +87,7 @@ services:
         - PKG_UPSTREAM: !ENV '${PKG_UPSTREAM}'
         - PKG_CACHE_SIZE: !ENV '${PKG_CACHE_SIZE}'
         - ENABLE_STATS: !ENV '${ENABLE_STATS}'
+        - SKIP_CHOWN: !ENV '${SKIP_CHOWN}'
     volumes:
       - pkg-cache: /config
       - pkg-cache_cache: /cache
@@ -120,6 +123,7 @@ podman run -d --name pkg-cache \
   -e PKG_UPSTREAM=pkg.FreeBSD.org \
   -e PKG_CACHE_SIZE=50g \
   -e ENABLE_STATS=false \
+  -e SKIP_CHOWN=true \
   -v /path/to/containers/pkg-cache:/config \
   -v /path/to/containers/pkg-cache/cache:/cache \
   -v /etc/resolv.conf:/etc/resolv.conf:ro \
@@ -140,6 +144,7 @@ appjail oci run -Pd \
   -e PKG_UPSTREAM=pkg.FreeBSD.org \
   -e PKG_CACHE_SIZE=50g \
   -e ENABLE_STATS=false \
+  -e SKIP_CHOWN=true \
   -o fstab="/path/to/containers/pkg-cache /config <pseudofs>" \
   -o fstab="/path/to/containers/pkg-cache/cache /cache <pseudofs>" \
   -o fstab="/etc/resolv.conf /etc/resolv.conf <pseudofs>" \
@@ -161,6 +166,7 @@ appjail oci run -Pd \
       PKG_UPSTREAM: "pkg.FreeBSD.org"
       PKG_CACHE_SIZE: "50g"
       ENABLE_STATS: "false"
+      SKIP_CHOWN: "true"
     ports:
       - "80:80"
       - "7890:7890"
@@ -182,12 +188,13 @@ Access at: `http://localhost:80`
 | `PKG_UPSTREAM` | `pkg.FreeBSD.org` | FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org. |
 | `PKG_CACHE_SIZE` | `50g` | Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big. |
 | `ENABLE_STATS` | `false` | Set to true to enable the GoAccess real-time stats dashboard on port 7890. |
+| `SKIP_CHOWN` | `true` | Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts. |
 
 ### Volumes
 
 | Path | Description |
 |------|-------------|
-| `/config` | Logs and generated stats storage (log/, stats/). The nginx config is appliance-managed at startup. |
+| `/config` | Logs, generated stats storage (log/, stats/), and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts. |
 | `/cache` | Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use). |
 | `/etc/resolv.conf` | Host DNS resolver config. Optional but recommended so upstream pkg resolution matches the host. |
 
@@ -200,7 +207,7 @@ Access at: `http://localhost:80`
 
 ### How it works
 
-Package files (`*.pkg`) are cached for 30 days — their filenames are
+Package files (`*.pkg`) are cached for 365 days — their filenames are
 versioned and immutable, so a HIT is always safe. Catalog metadata
 (`meta.conf`, `packagesite.*`, `data.*`) is cached for 1 minute instead,
 so `pkg` keeps resolving the latest updates without serving stale
@@ -236,12 +243,10 @@ echo 'VULNXML_SITE = "http://<cache-host>/vuxml/vuln.xml.xz";' >> /usr/local/etc
 
 No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
 
-Inspired by [this video](https://www.youtube.com/watch?v=zyJ1s6eu0l8).
-
 
 **Architectures:** amd64
 **User:** `bsd` (UID/GID via PUID/PGID, defaults to 1000:1000)
-**Base:** FreeBSD latest
+**Base:** FreeBSD 15.1
 
 ---
 

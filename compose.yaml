@@ -16,7 +16,7 @@ x-daemonless:
   notes: |
     ### How it works
 
-    Package files (`*.pkg`) are cached for 30 days — their filenames are
+    Package files (`*.pkg`) are cached for 365 days — their filenames are
     versioned and immutable, so a HIT is always safe. Catalog metadata
     (`meta.conf`, `packagesite.*`, `data.*`) is cached for 1 minute instead,
     so `pkg` keeps resolving the latest updates without serving stale
@@ -52,8 +52,6 @@ x-daemonless:
 
     No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
 
-    Inspired by [this video](https://www.youtube.com/watch?v=zyJ1s6eu0l8).
-
   readme:
     version_tags: |
       | Tag | Description | Best For |
@@ -72,8 +70,11 @@ x-daemonless:
       ENABLE_STATS:
         desc: "Set to true to enable the GoAccess real-time stats dashboard on port 7890."
         default: "false"
+      SKIP_CHOWN:
+        desc: "Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts."
+        default: "true"
     volumes:
-      /config: "Logs and generated stats storage (log/, stats/). The nginx config is appliance-managed at startup."
+      /config: "Logs, generated stats storage (log/, stats/), and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts."
       /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use)."
       /etc/resolv.conf: "Host DNS resolver config. Optional but recommended so upstream pkg resolution matches the host."
     ports:
@@ -91,6 +92,7 @@ services:
       - PKG_UPSTREAM=pkg.FreeBSD.org
       - PKG_CACHE_SIZE=50g
       - ENABLE_STATS=false
+      - SKIP_CHOWN=true
 
     volumes:
       - /containers/pkg-cache:/config
@@ -100,4 +102,3 @@ services:
     ports:
       - 80:80
       - 7890:7890
-

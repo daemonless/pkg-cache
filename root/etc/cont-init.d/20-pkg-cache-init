@@ -11,13 +11,46 @@ if [ -z "${RESOLVER}" ]; then
 fi
 RESOLVER="${RESOLVER:-1.1.1.1 8.8.8.8}"
 
+invalid_env() {
+    echo "[pkg-cache] invalid $1: $2" >&2
+    exit 1
+}
+
+has_newline() {
+    [ "$(printf "%s" "$1" | wc -l)" -ne 0 ]
+}
+
+if [ -z "${SIZE}" ] || has_newline "${SIZE}" || ! printf "%s" "${SIZE}" | grep -Eq "^[0-9]+[kKmMgG]?$"; then
+    invalid_env PKG_CACHE_SIZE "${SIZE}"
+fi
+if [ -z "${UPSTREAM}" ] || has_newline "${UPSTREAM}" || ! printf "%s" "${UPSTREAM}" | grep -Eq "^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$"; then
+    invalid_env PKG_UPSTREAM "${UPSTREAM}"
+fi
+if [ -z "${RESOLVER}" ] || has_newline "${RESOLVER}" || ! printf "%s" "${RESOLVER}" | grep -Eq "^[-A-Za-z0-9:.%_ ]+$"; then
+    invalid_env PKG_RESOLVER "${RESOLVER}"
+fi
+
 sed -i "" "s/max_size=[^ ;]*/max_size=${SIZE}/" /run/pkg-cache/nginx.conf
 sed -i "" "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" /run/pkg-cache/nginx.conf
 sed -i "" "s/PKG_RESOLVER/${RESOLVER}/" /run/pkg-cache/nginx.conf
 
 # Pre-create log files so they are owned by bsd (worker process) and not root.
 touch /config/log/access.log /config/log/error.log /config/log/goaccess.log
-chown -R bsd:bsd /config /cache /run/pkg-cache
+
+nginx -t -c /run/pkg-cache/nginx.conf
+
+# Fix ownership on first run, but skip the slow recursive pass once /config
+# records the current PUID:PGID. SKIP_CHOWN=false forces a chown every start.
+SKIP_CHOWN=${SKIP_CHOWN:-true}
+WANT="${PUID:-1000}:${PGID:-1000}"
+
+if [ "${SKIP_CHOWN}" = "true" ] && [ "$(cat /config/.chown_done 2>/dev/null)" = "$WANT" ]; then
+    echo "[pkg-cache] ownership already $WANT; skipping permission fix."
+else
+    echo "[pkg-cache] fixing permissions ($WANT)..."
+    echo "$WANT" > /config/.chown_done
+    chown -R bsd:bsd /config /cache /run/pkg-cache 2>/dev/null || true
+fi
 
 # Point nginx at the generated runtime config.
 ln -sf /run/pkg-cache/nginx.conf /usr/local/etc/nginx/nginx.conf
