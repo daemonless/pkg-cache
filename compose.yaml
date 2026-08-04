@@ -2,6 +2,7 @@ name: pkg-cache
 
 x-daemonless:
   title: "Daemonless pkg cache"
+  type: appliance
   icon: ":material-package-variant-closed:"
   category: "Infrastructure"
   description: "Managed FreeBSD pkg caching appliance — proxies pkg.FreeBSD.org to speed up package fetches across image builds and insulate them from upstream rate limits/outages."
