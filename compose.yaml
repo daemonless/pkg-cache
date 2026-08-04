@@ -69,7 +69,7 @@ x-daemonless:
         default: "50g"
       ENABLE_STATS:
         desc: "Set to true to enable the GoAccess real-time stats dashboard on port 7890."
-        default: "false"
+        default: "true"
       SKIP_CHOWN:
         desc: "Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts."
         default: "true"
