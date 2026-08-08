@@ -78,8 +78,8 @@ services:
     name: pkg_cache
     options:
       - container: 'boot args:--pull'
-      - expose: '80:80 proto:tcp' \
-      - expose: '7890:7890 proto:tcp' \
+      - expose: '80:80 proto:tcp'
+      - expose: '7890:7890 proto:tcp'
     oci:
       user: root
       environment:
@@ -244,7 +244,7 @@ echo 'VULNXML_SITE = "http://<cache-host>/vuxml/vuln.xml.xz";' >> /usr/local/etc
 No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
 
 
-**Architectures:** amd64
+**Architectures:** amd64, aarch64
 **User:** `bsd` (UID/GID via PUID/PGID, defaults to 1000:1000)
 **Base:** FreeBSD 15.1
 
