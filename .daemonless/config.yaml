@@ -10,6 +10,8 @@ build:
   variants:
     - tag: latest
       containerfile: Containerfile
+      default: true
+      tag_desc: "**daemonless Appliance**. Managed FreeBSD pkg cache proxy built on nginx-base."
 
 cit:
   mode: screenshot

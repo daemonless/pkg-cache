@@ -20,8 +20,7 @@ Managed FreeBSD pkg caching appliance — proxies pkg.FreeBSD.org to speed up pa
 ## Version Tags
 | Tag | Description | Best For |
 | :--- | :--- | :--- |
-| `latest` | **daemonless Appliance**. Managed FreeBSD pkg cache proxy built on nginx-base. | Shared package cache for daemonless builds and FreeBSD hosts. |
-
+| `latest` | **daemonless Appliance**. Managed FreeBSD pkg cache proxy built on nginx-base. | Most users — recommended. |
 
 ## Prerequisites
 Before deploying, ensure your host environment is ready. See the [Quick Start Guide](https://daemonless.io/guides/quick-start) for host setup instructions.
@@ -41,15 +40,18 @@ services:
       - PKG_CACHE_SIZE=50g  # Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big.
       - ENABLE_STATS=false  # Set to true to enable the GoAccess real-time stats dashboard on port 7890.
       - SKIP_CHOWN=true  # Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts.
+      - PKG_LOG_MAX_SIZE=50m  # Size cap for each on-disk log in /config/log (access.log, error.log, goaccess.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; GoAccess keeps full history in its persisted db regardless.
     volumes:
       - "/path/to/containers/pkg-cache:/config"
       - "/path/to/containers/pkg-cache/cache:/cache"
-      - "/etc/resolv.conf:/etc/resolv.conf:ro"
     ports:
       - "80:80"
       - "7890:7890"
-    restart: unless-stopped
+    # always (not unless-stopped) so FreeBSD's podman rc.d auto-starts it at boot
+    restart: always
 ```
+
+Save as `compose.yaml`, then run `podman-compose up -d`.
 
 ### AppJail Director
 **.env**:
@@ -63,6 +65,7 @@ PKG_UPSTREAM=pkg.FreeBSD.org
 PKG_CACHE_SIZE=50g
 ENABLE_STATS=false
 SKIP_CHOWN=true
+PKG_LOG_MAX_SIZE=50m
 ```
 
 **appjail-director.yml**:
@@ -88,17 +91,15 @@ services:
         - PKG_CACHE_SIZE: !ENV '${PKG_CACHE_SIZE}'
         - ENABLE_STATS: !ENV '${ENABLE_STATS}'
         - SKIP_CHOWN: !ENV '${SKIP_CHOWN}'
+        - PKG_LOG_MAX_SIZE: !ENV '${PKG_LOG_MAX_SIZE}'
     volumes:
       - pkg-cache: /config
       - pkg-cache_cache: /cache
-      - etc_resolv_conf: /etc/resolv.conf
 volumes:
   pkg-cache:
     device: '/path/to/containers/pkg-cache'
   pkg-cache_cache:
     device: '/path/to/containers/pkg-cache/cache'
-  etc_resolv_conf:
-    device: '/etc/resolv.conf'
 ```
 
 **Makejail**:
@@ -111,6 +112,9 @@ ARG tag=latest
 OPTION overwrite=force
 OPTION from=ghcr.io/daemonless/pkg-cache:${tag}
 ```
+
+Save the files above, then run `appjail-director up`.
+
 **Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
 
 ### Podman CLI
@@ -124,11 +128,13 @@ podman run -d --name pkg-cache \
   -e PKG_CACHE_SIZE=50g \
   -e ENABLE_STATS=false \
   -e SKIP_CHOWN=true \
+  -e PKG_LOG_MAX_SIZE=50m \
   -v /path/to/containers/pkg-cache:/config \
   -v /path/to/containers/pkg-cache/cache:/cache \
-  -v /etc/resolv.conf:/etc/resolv.conf:ro \
   ghcr.io/daemonless/pkg-cache:latest
 ```
+
+Save as `run.sh`, then run `sh run.sh`.
 
 ### AppJail
 
@@ -145,12 +151,49 @@ appjail oci run -Pd \
   -e PKG_CACHE_SIZE=50g \
   -e ENABLE_STATS=false \
   -e SKIP_CHOWN=true \
+  -e PKG_LOG_MAX_SIZE=50m \
   -o fstab="/path/to/containers/pkg-cache /config <pseudofs>" \
   -o fstab="/path/to/containers/pkg-cache/cache /cache <pseudofs>" \
-  -o fstab="/etc/resolv.conf /etc/resolv.conf <pseudofs>" \
   ghcr.io/daemonless/pkg-cache:latest pkg-cache
 ```
+
+Save as `run.sh`, then run `sh run.sh`.
+
 **Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
+
+### Bastille
+
+> [!WARNING]
+> Bastille's OCI support is **experimental**. It requires `buildah`, shares the host network stack (`inherit`), and persists image-declared volumes under `--data-path`.
+
+```yaml
+services:
+  pkg-cache:
+    image: "ghcr.io/daemonless/pkg-cache:latest"
+    container_name: pkg-cache
+    network_mode: host  # jail shares host networking
+    environment:
+      - TZ=UTC
+      - PKG_UPSTREAM=pkg.FreeBSD.org
+      - PKG_CACHE_SIZE=50g
+      - ENABLE_STATS=false
+      - SKIP_CHOWN=true
+      - PKG_LOG_MAX_SIZE=50m
+```
+
+Save as `podman-compose.yml`, then run `bastille up`. Or via CLI:
+
+```bash
+bastille create -O \
+  --env TZ=UTC \
+  --env PKG_UPSTREAM=pkg.FreeBSD.org \
+  --env PKG_CACHE_SIZE=50g \
+  --env ENABLE_STATS=false \
+  --env SKIP_CHOWN=true \
+  --env PKG_LOG_MAX_SIZE=50m \
+  --data-path /path/to/containers/pkg-cache \
+  pkg-cache ghcr.io/daemonless/pkg-cache:latest inherit
+```
 
 ### Ansible
 
@@ -167,14 +210,16 @@ appjail oci run -Pd \
       PKG_CACHE_SIZE: "50g"
       ENABLE_STATS: "false"
       SKIP_CHOWN: "true"
+      PKG_LOG_MAX_SIZE: "50m"
     ports:
       - "80:80"
       - "7890:7890"
     volumes:
       - "/path/to/containers/pkg-cache:/config"
       - "/path/to/containers/pkg-cache/cache:/cache"
-      - "/etc/resolv.conf:/etc/resolv.conf:ro"
 ```
+
+Save as `pkg-cache-deploy.yaml`, then run `ansible-playbook pkg-cache-deploy.yaml`.
 
 Access at: `http://localhost:80`
 
@@ -189,6 +234,7 @@ Access at: `http://localhost:80`
 | `PKG_CACHE_SIZE` | `50g` | Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big. |
 | `ENABLE_STATS` | `false` | Set to true to enable the GoAccess real-time stats dashboard on port 7890. |
 | `SKIP_CHOWN` | `true` | Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts. |
+| `PKG_LOG_MAX_SIZE` | `50m` | Size cap for each on-disk log in /config/log (access.log, error.log, goaccess.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; GoAccess keeps full history in its persisted db regardless. |
 
 ### Volumes
 
@@ -196,7 +242,6 @@ Access at: `http://localhost:80`
 |------|-------------|
 | `/config` | Logs, generated stats storage (log/, stats/), and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts. |
 | `/cache` | Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use). |
-| `/etc/resolv.conf` | Host DNS resolver config. Optional but recommended so upstream pkg resolution matches the host. |
 
 ### Ports
 

@@ -1,0 +1,44 @@
+#!/bin/sh
+# Size-cap the appliance's on-disk logs so /config can never fill.
+# When a log passes PKG_LOG_MAX_SIZE it is moved aside, nginx is told to
+# reopen its log files (SIGUSR1), and the moved copy is removed. The
+# persisted GoAccess dataset (/config/stats/db) keeps full history across
+# rotations, so capping the raw log costs no stats.
+
+MAX_H="${PKG_LOG_MAX_SIZE:-50m}"
+if ! printf "%s" "$MAX_H" | grep -Eq "^[0-9]+[kKmMgG]?$"; then
+    echo "[pkg-cache] invalid PKG_LOG_MAX_SIZE '${MAX_H}', using 50m" >&2
+    MAX_H=50m
+fi
+n=${MAX_H%[kKmMgG]}
+case "$MAX_H" in
+    *[kK]) MAX=$((n * 1024)) ;;
+    *[mM]) MAX=$((n * 1024 * 1024)) ;;
+    *[gG]) MAX=$((n * 1024 * 1024 * 1024)) ;;
+    *)     MAX=$n ;;
+esac
+
+LOGDIR=/config/log
+CHECK=300
+
+while true; do
+    rotated=0
+    for f in access.log error.log goaccess.log; do
+        p="$LOGDIR/$f"
+        [ -f "$p" ] || continue
+        sz=$(stat -f%z "$p" 2>/dev/null || echo 0)
+        if [ "$sz" -gt "$MAX" ]; then
+            mv -f "$p" "$p.rotating"
+            rotated=1
+        fi
+    done
+    if [ "$rotated" -eq 1 ]; then
+        # Master reopens every log file by path -> fresh empty logs; workers
+        # release the old fds after finishing in-flight writes.
+        pid=$(cat /var/run/nginx.pid 2>/dev/null)
+        [ -n "$pid" ] && kill -USR1 "$pid" 2>/dev/null
+        sleep 2
+        rm -f "$LOGDIR"/*.rotating
+    fi
+    sleep "$CHECK"
+done

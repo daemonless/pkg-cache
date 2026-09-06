@@ -3,11 +3,20 @@
 # Set ENABLE_STATS=true to activate; otherwise this service idles.
 [ "${ENABLE_STATS:-false}" = "true" ] || exec tail -f /dev/null
 
-mkdir -p /config/stats
+mkdir -p /config/stats /config/stats/db
 cp /defaults/goaccess-custom.css /config/stats/custom.css
+# db/ holds the persisted dataset; must be writable by the bsd worker even
+# when SKIP_CHOWN skipped the recursive cont-init chown on this start.
+chown bsd:bsd /config/stats /config/stats/db 2>/dev/null || true
 
 while true; do
+    # Incremental: --restore loads the persisted dataset, only new log lines
+    # are parsed, --persist writes it back on exit. Keeps full history across
+    # log rotation and turns each cycle from O(whole log) into O(new lines).
+    # NOTE: a future GoAccess major bump can make the on-disk db incompatible
+    # on --restore; if stats stop updating after an upgrade, wipe /config/stats/db.
     s6-setuidgid bsd goaccess /config/log/goaccess.log \
+        --db-path=/config/stats/db --persist --restore \
         -o /config/stats/index.html \
         --log-format='%h - - [%d:%t %^] "%r" %s %b %C' \
         --date-format='%d/%b/%Y' \

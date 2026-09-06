@@ -53,12 +53,6 @@ x-daemonless:
 
     No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
 
-  readme:
-    version_tags: |
-      | Tag | Description | Best For |
-      | :--- | :--- | :--- |
-      | `latest` | **daemonless Appliance**. Managed FreeBSD pkg cache proxy built on nginx-base. | Shared package cache for daemonless builds and FreeBSD hosts. |
-
   docs:
     env:
       TZ: "Timezone for the container"
@@ -74,10 +68,12 @@ x-daemonless:
       SKIP_CHOWN:
         desc: "Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts."
         default: "true"
+      PKG_LOG_MAX_SIZE:
+        desc: "Size cap for each on-disk log in /config/log (access.log, error.log, goaccess.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; GoAccess keeps full history in its persisted db regardless."
+        default: "50m"
     volumes:
       /config: "Logs, generated stats storage (log/, stats/), and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts."
       /cache: "Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use)."
-      /etc/resolv.conf: "Host DNS resolver config. Optional but recommended so upstream pkg resolution matches the host."
     ports:
       80: "HTTP — pkg clients point their FreeBSD.conf url here"
       7890: "GoAccess stats dashboard (HTML) — enabled via ENABLE_STATS=true"
@@ -94,11 +90,11 @@ services:
       - PKG_CACHE_SIZE=50g
       - ENABLE_STATS=false
       - SKIP_CHOWN=true
+      - PKG_LOG_MAX_SIZE=50m
 
     volumes:
       - /containers/pkg-cache:/config
       - /containers/pkg-cache/cache:/cache
-      - /etc/resolv.conf:/etc/resolv.conf:ro
 
     ports:
       - 80:80

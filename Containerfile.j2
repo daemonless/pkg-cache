@@ -1,7 +1,7 @@
 ARG BASE_VERSION=latest
 FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
 
-ARG APP_VER=1.3
+ARG APP_VER=1.4
 
 ARG FREEBSD_ARCH=amd64
 
@@ -31,7 +31,8 @@ RUN chmod +x \
     /etc/cont-init.d/20-pkg-cache-init \
     /etc/services.d/goaccess/run \
     /etc/services.d/pkg-cache-access-log/run \
-    /etc/services.d/pkg-cache-error-log/run
+    /etc/services.d/pkg-cache-error-log/run \
+    /etc/services.d/pkg-cache-logrotate/run
 
 EXPOSE 80 7890
 
