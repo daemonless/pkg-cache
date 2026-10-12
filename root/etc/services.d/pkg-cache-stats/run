@@ -1,0 +1,107 @@
+#!/bin/sh
+# Keep /config/stats/stats.json current for the landing page. Each pass reads
+# only the access-log bytes appended since the last one and folds them into
+# running totals (counters, clients) that survive log rotation and restarts.
+
+STATS=/config/stats
+LOG=/config/log/access.log
+INTERVAL=5
+
+if [ "$(id -u)" = 0 ]; then
+    mkdir -p "$STATS"
+    chown bsd:bsd "$STATS" 2>/dev/null || true
+    exec s6-setuidgid bsd /bin/sh "$0"
+fi
+
+STARTED=$(date +%s)
+UPSTREAM="${PKG_UPSTREAM:-pkg.FreeBSD.org}"
+SIZE_H="${PKG_CACHE_SIZE:-50g}"
+n=${SIZE_H%[kKmMgG]}
+case "$SIZE_H" in
+    *[kK]) MAXSIZE=$((n * 1024)) ;;
+    *[mM]) MAXSIZE=$((n * 1024 * 1024)) ;;
+    *[gG]) MAXSIZE=$((n * 1024 * 1024 * 1024)) ;;
+    *)     MAXSIZE=$n ;;
+esac
+
+offset=$(cat "$STATS/offset" 2>/dev/null || echo 0)
+cache_bytes=0; cache_objects=0; tick=12
+touch "$STATS/counters" "$STATS/clients"
+
+while true; do
+    # Disk usage is a full walk of /cache; once a minute is plenty.
+    if [ "$tick" -ge 12 ]; then
+        cache_bytes=$(( $(du -sk /cache 2>/dev/null | cut -f1) * 1024 ))
+        cache_objects=$(find /cache -type f 2>/dev/null | wc -l | tr -d ' ')
+        tick=0
+    fi
+    tick=$((tick + 1))
+
+    size=$(stat -f %z "$LOG" 2>/dev/null || echo 0)
+    [ "$size" -lt "$offset" ] && offset=0          # log was rotated
+    if [ "$size" -gt "$offset" ]; then
+        tail -c +$((offset + 1)) "$LOG" | head -c $((size - offset)) > "$STATS/new.log"
+    else
+        : > "$STATS/new.log"
+    fi
+    offset=$size
+    grep -v ' \[-\] ' "$LOG" 2>/dev/null | tail -15 > "$STATS/recent.log"
+
+    awk -v now="$(date +%s)" -v started="$STARTED" -v upstream="$UPSTREAM" \
+        -v maxsize="$MAXSIZE" -v cache_bytes="$cache_bytes" -v cache_objects="$cache_objects" \
+        -v cfile="$STATS/counters" -v kfile="$STATS/clients" -v rfile="$STATS/recent.log" \
+        -v out="$STATS/stats.json.tmp" '
+    function js(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
+    # 5xx responses never served a package; they get their own bucket so an
+    # upstream outage does not look like a run of misses.
+    function status(s, code) {
+        if (code >= 500) return "error"
+        s = tolower(s)
+        if (s ~ /^(hit|miss|expired|stale|updating|revalidated|bypass)$/) return s
+        return "other"
+    }
+    FILENAME == cfile { c[$1] = $2; next }
+    FILENAME == kfile { creq[$1] = $2; cbytes[$1] = $3; next }
+    FILENAME == rfile {
+        st = $2; gsub(/[\[\]]/, "", st); b = $7; sub(/b$/, "", b)
+        nr++; r_ip[nr] = $1; r_st[nr] = st; r_path[nr] = $4; r_code[nr] = $6; r_b[nr] = b + 0
+        next
+    }
+    # access.log line: ip [STATUS] "METHOD path HTTP/x" code NNNb
+    NF >= 7 {
+        st = $2; gsub(/[\[\]]/, "", st)
+        if (st == "-") next                      # landing page, healthz, stats.json
+        b = $7; sub(/b$/, "", b); b += 0
+        s = status(st, $6 + 0)
+        c["req_" s]++; c["bytes_" s] += b; c["req_total"]++; c["bytes_total"] += b
+        if (!("since" in c)) c["since"] = now
+        creq[$1]++; cbytes[$1] += b
+    }
+    END {
+        for (k in c) printf "%s %.0f\n", k, c[k] > cfile
+        for (ip in creq) printf "%s %.0f %.0f\n", ip, creq[ip], cbytes[ip] > kfile
+        split("hit miss expired stale updating revalidated bypass other error total", keys, " ")
+        printf "{\"generated\":%d,\"started\":%d,\"since\":%d,\"upstream\":\"%s\",", now, started, c["since"] + 0, js(upstream) > out
+        printf "\"cache\":{\"bytes\":%.0f,\"max_bytes\":%.0f,\"objects\":%d},", cache_bytes, maxsize, cache_objects > out
+        printf "\"requests\":{" > out
+        for (i = 1; i <= 10; i++) printf "%s\"%s\":%.0f", (i > 1 ? "," : ""), keys[i], c["req_" keys[i]] + 0 > out
+        printf "},\"bytes\":{" > out
+        for (i = 1; i <= 10; i++) printf "%s\"%s\":%.0f", (i > 1 ? "," : ""), keys[i], c["bytes_" keys[i]] + 0 > out
+        printf "},\"clients\":[" > out
+        for (i = 1; i <= 10; i++) {                 # top 10 by requests
+            best = ""
+            for (ip in creq) if (!(ip in done) && (best == "" || creq[ip] > creq[best])) best = ip
+            if (best == "") break
+            done[best] = 1
+            printf "%s{\"ip\":\"%s\",\"requests\":%.0f,\"bytes\":%.0f}", (i > 1 ? "," : ""), js(best), creq[best], cbytes[best] > out
+        }
+        printf "],\"recent\":[" > out
+        for (i = nr; i >= 1; i--)
+            printf "%s{\"ip\":\"%s\",\"status\":\"%s\",\"path\":\"%s\",\"code\":%d,\"bytes\":%.0f}", (i < nr ? "," : ""), js(r_ip[i]), js(r_st[i]), js(r_path[i]), r_code[i], r_b[i] > out
+        printf "]}\n" > out
+    }' "$STATS/counters" "$STATS/clients" "$STATS/recent.log" "$STATS/new.log" \
+    && mv -f "$STATS/stats.json.tmp" "$STATS/stats.json" \
+    && echo "$offset" > "$STATS/offset"
+
+    sleep "$INTERVAL"
+done

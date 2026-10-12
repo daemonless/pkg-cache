@@ -7,7 +7,7 @@
 ARG BASE_VERSION=latest
 FROM ghcr.io/daemonless/nginx-base:${BASE_VERSION}
 
-ARG APP_VER=1.4
+ARG APP_VER=1.5
 
 ARG FREEBSD_ARCH=amd64
 
@@ -26,21 +26,18 @@ LABEL org.opencontainers.image.title="Daemonless pkg cache" \
 
 RUN mkdir -p /app && echo "${APP_VER}" > /app/version
 
-# GoAccess for the optional real-time stats dashboard (ENABLE_STATS=true).
-RUN pkg install -y sysutils/goaccess && pkg clean -ay && rm -rf /var/cache/pkg/*
-
 # Copy appliance root filesystem. The nginx s6 service comes from nginx-base;
 # this image renders the managed proxy config at startup.
 COPY root/ /
 
 RUN chmod +x \
     /etc/cont-init.d/20-pkg-cache-init \
-    /etc/services.d/goaccess/run \
     /etc/services.d/pkg-cache-access-log/run \
     /etc/services.d/pkg-cache-error-log/run \
-    /etc/services.d/pkg-cache-logrotate/run
+    /etc/services.d/pkg-cache-logrotate/run \
+    /etc/services.d/pkg-cache-stats/run
 
-EXPOSE 80 7890
+EXPOSE 80
 
 # Logs, generated stats, and cache storage
 VOLUME ["/config", "/cache"]

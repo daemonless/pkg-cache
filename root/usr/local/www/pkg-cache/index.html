@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Daemonless pkg cache</title>
+<link rel="icon" type="image/png" href="/favicon.png">
 <style>
   :root {
     color-scheme: dark;
@@ -14,6 +15,7 @@
     --muted: #8893a6;
     --accent: #5fb3ff;
     --ok: #4cd787;
+    --warn: #f0b35a;
   }
   * { box-sizing: border-box; }
   body {
@@ -22,129 +24,205 @@
     color: var(--text);
     font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  main {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 64px 24px 40px;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 40px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
   .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--ok);
-    box-shadow: 0 0 8px var(--ok);
-    flex-shrink: 0;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--ok); box-shadow: 0 0 8px var(--ok); flex-shrink: 0;
   }
-  h1 {
-    font-size: 22px;
-    font-weight: 600;
-    margin: 0;
-    letter-spacing: -0.01em;
+  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .tagline { color: var(--muted); margin: 0 0 28px; }
+  .tagline span { color: var(--text); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .tile, section {
+    border: 1px solid var(--border); background: var(--panel);
+    border-radius: 10px; padding: 18px 20px;
   }
-  .tagline {
-    color: var(--muted);
-    margin: 0 0 36px;
+  section { margin-bottom: 12px; }
+  .tile h2, section h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
   }
-  section {
-    border: 1px solid var(--border);
-    background: var(--panel);
-    border-radius: 10px;
-    padding: 20px 24px;
-    margin-bottom: 16px;
-  }
-  section h2 {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    margin: 0 0 14px;
-    font-weight: 600;
-  }
+  .big { font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; }
+  .big small { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .bar { height: 6px; background: #060a11; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+  .bar.ok i { background: var(--ok); }
+  .bar.full i { background: var(--warn); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:last-child, td:last-child { padding-right: 0; }
+  th { color: var(--muted); font-weight: 500; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.path { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  td.path b { color: var(--text); font-weight: 500; }
+  tr:last-child td { border-bottom: 0; }
+  .st { display: inline-block; min-width: 54px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+  .st-hit, .st-stale, .st-revalidated, .st-updating { color: var(--ok); }
+  .st-miss, .st-expired, .st-bypass { color: var(--warn); }
+  .st-error { color: #ef6a6a; }
+  .empty { color: var(--muted); font-size: 13px; }
   pre {
-    background: #060a11;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 14px 16px;
-    overflow-x: auto;
+    background: #060a11; border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; margin: 0;
     font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    margin: 0;
   }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  .var {
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 4px;
-  }
-  .links a {
-    color: var(--accent);
-    text-decoration: none;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 13px;
-  }
-  .links a:hover {
-    border-color: var(--accent);
-  }
-  footer {
-    color: var(--muted);
-    font-size: 12px;
-    margin-top: 32px;
-  }
-  footer a {
-    color: var(--muted);
-  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .var { color: var(--accent); font-weight: 600; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details[open] summary { margin-bottom: 12px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; display: flex; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--muted); }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <span class="dot"></span>
+    <span class="dot" id="dot"></span>
     <h1>Daemonless pkg cache</h1>
   </header>
-  <p class="tagline">FreeBSD pkg caching proxy — daemonless appliance</p>
+  <p class="tagline">Proxying <span id="upstream">…</span> · <span id="since"></span></p>
+
+  <div class="tiles">
+    <div class="tile">
+      <h2>Hit rate</h2>
+      <div class="big" id="hitrate">–</div>
+      <div class="sub" id="hitsub">no requests yet</div>
+      <div class="bar ok"><i id="hitbar"></i></div>
+    </div>
+    <div class="tile">
+      <h2>Served from cache</h2>
+      <div class="big" id="bytes-hit">0 B</div>
+      <div class="sub" id="bytes-hit-sub">bandwidth saved</div>
+    </div>
+    <div class="tile">
+      <h2>Fetched upstream</h2>
+      <div class="big" id="bytes-miss">0 B</div>
+      <div class="sub" id="bytes-miss-sub">first-time and expired fetches</div>
+    </div>
+    <div class="tile">
+      <h2>Cache disk</h2>
+      <div class="big" id="disk">0 B<small>used</small></div>
+      <div class="sub" id="disk-sub"></div>
+      <div class="bar" id="diskbarwrap"><i id="diskbar"></i></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <section>
+      <h2>Requests by cache status</h2>
+      <table id="status"><tbody></tbody></table>
+    </section>
+    <section>
+      <h2>Top clients</h2>
+      <table id="clients"><tbody></tbody></table>
+    </section>
+  </div>
 
   <section>
-    <h2>Configure a client</h2>
-    <p>Save as <code>/usr/local/etc/pkg/repos/FreeBSD.conf</code>:</p>
-    <pre>FreeBSD: {
+    <h2>Recent requests</h2>
+    <table id="recent"><tbody></tbody></table>
+  </section>
+
+  <section>
+    <details>
+      <summary>Configure a client</summary>
+      <p>Save as <code>/usr/local/etc/pkg/repos/FreeBSD.conf</code>:</p>
+      <pre>FreeBSD: {
   url: "http://<span id="cache-host">&lt;cache-host&gt;</span>/${ABI}/<span class="var">quarterly</span>",
   mirror_type: "none",
   signature_type: "fingerprints",
   fingerprints: "/usr/share/keys/pkg",
   enabled: yes
 }</pre>
-    <p>The cache proxies whatever path the client requests — swap <span class="var">quarterly</span> for <span class="var">latest</span> to track rolling packages instead.</p>
-  </section>
-
-  <section>
-    <h2>Status</h2>
-    <div class="links">
-      <a href="/healthz">healthz</a>
-      <a id="stats-link" href="#">stats dashboard</a>
-    </div>
+      <p>The cache proxies whatever path the client requests — swap <span class="var">quarterly</span> for <span class="var">latest</span> to track rolling packages instead.</p>
+    </details>
   </section>
 
   <footer>
+    <a href="/stats.json">stats.json</a>
+    <a href="/healthz">healthz</a>
     <a href="https://daemonless.io/images/pkg-cache/">daemonless.io/images/pkg-cache</a>
   </footer>
 </main>
 <script>
-  document.getElementById("stats-link").href = "//" + location.hostname + ":7890/";
   document.getElementById("cache-host").textContent = location.hostname;
+  const $ = id => document.getElementById(id);
+  const CACHED = ["hit", "stale", "revalidated", "updating"];
+  const ORDER = ["hit", "miss", "expired", "stale", "revalidated", "updating", "bypass", "other", "error"];
+
+  function bytes(n) {
+    const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i ? n.toFixed(n >= 100 ? 0 : 1) : n) + " " + u[i];
+  }
+  function dur(epoch) {
+    const s = Math.max(0, Math.floor(Date.now() / 1000 - epoch));
+    if (s < 60) return "under a minute";
+    if (s < 3600) return Math.floor(s / 60) + " min";
+    if (s < 172800) return Math.floor(s / 3600) + " h";
+    return Math.floor(s / 86400) + " days";
+  }
+  function row(cells) {
+    return "<tr>" + cells.map(c => "<td" + (c.cls ? ' class="' + c.cls + '"' : "") + ">" + c.html + "</td>").join("") + "</tr>";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
+  function st(s) { return '<span class="st st-' + s.toLowerCase() + '">' + esc(s) + "</span>"; }
+
+  function render(d) {
+    const r = d.requests, b = d.bytes;
+    const cached = CACHED.reduce((n, k) => n + (r[k] || 0), 0);
+    const cachedBytes = CACHED.reduce((n, k) => n + (b[k] || 0), 0);
+    const served = r.total - (r.error || 0);
+    const fetched = served - cached, fetchedBytes = b.total - cachedBytes - (b.error || 0);
+
+    $("upstream").textContent = d.upstream;
+    $("since").textContent = d.since ? "counting for " + dur(d.since) : "up for " + dur(d.started);
+    if (served) {
+      const pct = 100 * cached / served;
+      $("hitrate").innerHTML = pct.toFixed(pct >= 99.5 ? 1 : 0) + "<small>%</small>";
+      $("hitsub").textContent = cached.toLocaleString() + " of " + served.toLocaleString() + " requests" + (r.error ? ", " + r.error.toLocaleString() + " upstream errors" : "");
+      $("hitbar").style.width = pct + "%";
+    }
+    $("bytes-hit").textContent = bytes(cachedBytes);
+    $("bytes-miss").textContent = bytes(fetchedBytes);
+    $("bytes-miss-sub").textContent = fetched.toLocaleString() + " requests went upstream";
+    const diskPct = d.cache.max_bytes ? 100 * d.cache.bytes / d.cache.max_bytes : 0;
+    $("disk").innerHTML = bytes(d.cache.bytes) + "<small>used</small>";
+    $("disk-sub").textContent = diskPct.toFixed(0) + "% of " + bytes(d.cache.max_bytes) + " limit · " + d.cache.objects.toLocaleString() + " objects";
+    $("diskbar").style.width = Math.min(100, diskPct) + "%";
+    $("diskbarwrap").classList.toggle("full", diskPct >= 95);
+
+    const stRows = ORDER.filter(k => r[k]).map(k => row([
+      {html: st(k.toUpperCase())}, {html: r[k].toLocaleString(), cls: "num"}, {html: bytes(b[k] || 0), cls: "num"}]));
+    $("status").tBodies[0].innerHTML = stRows.join("") || row([{html: '<span class="empty">No proxied requests yet</span>'}]);
+
+    $("clients").tBodies[0].innerHTML = d.clients.map(c => row([
+      {html: esc(c.ip)}, {html: c.requests.toLocaleString(), cls: "num"}, {html: bytes(c.bytes), cls: "num"}
+    ])).join("") || row([{html: '<span class="empty">No clients yet</span>'}]);
+
+    $("recent").tBodies[0].innerHTML = d.recent.map(x => {
+      const p = x.path.replace(/^\/+/, ""), i = p.lastIndexOf("/");
+      const path = i < 0 ? "<b>" + esc(p) + "</b>" : esc(p.slice(0, i + 1)) + "<b>" + esc(p.slice(i + 1)) + "</b>";
+      return row([{html: st(x.status)}, {html: path, cls: "path"}, {html: esc(x.ip)}, {html: x.code, cls: "num"}, {html: bytes(x.bytes), cls: "num"}]);
+    }).join("") || row([{html: '<span class="empty">Nothing yet — point a pkg client at this host</span>'}]);
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch("/stats.json", {cache: "no-store"});
+      if (!res.ok) throw new Error(res.status);
+      render(await res.json());
+      $("dot").style.background = "var(--ok)";
+    } catch (e) {
+      $("dot").style.background = "var(--warn)";
+    }
+  }
+  refresh();
+  setInterval(refresh, 10000);
 </script>
 </body>
 </html>

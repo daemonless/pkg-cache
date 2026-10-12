@@ -35,7 +35,7 @@ sed -i "" "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" /run/pkg-cache/nginx.conf
 sed -i "" "s/PKG_RESOLVER/${RESOLVER}/" /run/pkg-cache/nginx.conf
 
 # Pre-create log files so they are owned by bsd (worker process) and not root.
-touch /config/log/access.log /config/log/error.log /config/log/goaccess.log
+touch /config/log/access.log /config/log/error.log
 
 nginx -t -c /run/pkg-cache/nginx.conf
 
