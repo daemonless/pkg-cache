@@ -7,6 +7,7 @@ Source: dbuild templates
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/daemonless/pkg-cache/build.yaml?style=flat-square&label=Build&color=green)](https://github.com/daemonless/pkg-cache/actions)
 [![Last Commit](https://img.shields.io/github/last-commit/daemonless/pkg-cache?style=flat-square&label=Last+Commit&color=blue)](https://github.com/daemonless/pkg-cache/commits)
+[![OCI Pulls](https://img.shields.io/docker/pulls/daemonless/pkg-cache?style=flat-square&label=OCI+Pulls&color=blue)](https://hub.docker.com/r/daemonless/pkg-cache)
 
 Managed FreeBSD pkg caching appliance — proxies pkg.FreeBSD.org to speed up package fetches across image builds and insulate them from upstream rate limits/outages.
 
@@ -37,16 +38,14 @@ services:
     environment:
       - TZ=UTC  # Timezone for the container
       - PKG_UPSTREAM=pkg.FreeBSD.org  # FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org.
-      - PKG_CACHE_SIZE=50g  # Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big.
-      - ENABLE_STATS=false  # Set to true to enable the GoAccess real-time stats dashboard on port 7890.
+      - PKG_CACHE_SIZE=50g  # Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. Keep the /cache volume at least this big.
       - SKIP_CHOWN=true  # Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts.
-      - PKG_LOG_MAX_SIZE=50m  # Size cap for each on-disk log in /config/log (access.log, error.log, goaccess.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; GoAccess keeps full history in its persisted db regardless.
+      - PKG_LOG_MAX_SIZE=50m  # Size cap for each on-disk log in /config/log (access.log, error.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; the stats totals are kept separately and survive rotation.
     volumes:
-      - "/path/to/containers/pkg-cache:/config"
-      - "/path/to/containers/pkg-cache/cache:/cache"
+      - "/containers/pkg-cache:/config"
+      - "/containers/pkg-cache/cache:/cache"
     ports:
       - "80:80"
-      - "7890:7890"
     # always (not unless-stopped) so FreeBSD's podman rc.d auto-starts it at boot
     restart: always
 ```
@@ -63,7 +62,6 @@ DIRECTOR_PROJECT=pkg-cache
 TZ=UTC
 PKG_UPSTREAM=pkg.FreeBSD.org
 PKG_CACHE_SIZE=50g
-ENABLE_STATS=false
 SKIP_CHOWN=true
 PKG_LOG_MAX_SIZE=50m
 ```
@@ -80,16 +78,14 @@ services:
   pkg-cache:
     name: pkg_cache
     options:
-      - container: 'boot args:--pull'
+      - container: 'args:--pull'
       - expose: '80:80 proto:tcp'
-      - expose: '7890:7890 proto:tcp'
     oci:
       user: root
       environment:
         - TZ: !ENV '${TZ}'
         - PKG_UPSTREAM: !ENV '${PKG_UPSTREAM}'
         - PKG_CACHE_SIZE: !ENV '${PKG_CACHE_SIZE}'
-        - ENABLE_STATS: !ENV '${ENABLE_STATS}'
         - SKIP_CHOWN: !ENV '${SKIP_CHOWN}'
         - PKG_LOG_MAX_SIZE: !ENV '${PKG_LOG_MAX_SIZE}'
     volumes:
@@ -97,9 +93,9 @@ services:
       - pkg-cache_cache: /cache
 volumes:
   pkg-cache:
-    device: '/path/to/containers/pkg-cache'
+    device: '/containers/pkg-cache'
   pkg-cache_cache:
-    device: '/path/to/containers/pkg-cache/cache'
+    device: '/containers/pkg-cache/cache'
 ```
 
 **Makejail**:
@@ -109,117 +105,43 @@ volumes:
 
 ARG tag=latest
 
+OPTION container=boot
 OPTION overwrite=force
 OPTION from=ghcr.io/daemonless/pkg-cache:${tag}
 ```
 
 Save the files above, then run `appjail-director up`.
 
-**Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
 
-### Podman CLI
-
-```bash
-podman run -d --name pkg-cache \
-  -p 80:80 \
-  -p 7890:7890 \
-  -e TZ=UTC \
-  -e PKG_UPSTREAM=pkg.FreeBSD.org \
-  -e PKG_CACHE_SIZE=50g \
-  -e ENABLE_STATS=false \
-  -e SKIP_CHOWN=true \
-  -e PKG_LOG_MAX_SIZE=50m \
-  -v /path/to/containers/pkg-cache:/config \
-  -v /path/to/containers/pkg-cache/cache:/cache \
-  ghcr.io/daemonless/pkg-cache:latest
-```
-
-Save as `run.sh`, then run `sh run.sh`.
-
-### AppJail
-
-```bash
-appjail oci run -Pd \
-  -o overwrite=force \
-  -o container="args:--pull" \
-  -o virtualnet=":<random> default" \
-  -o nat \
-  -o expose="80:80 proto:tcp" \
-  -o expose="7890:7890 proto:tcp" \
-  -e TZ=UTC \
-  -e PKG_UPSTREAM=pkg.FreeBSD.org \
-  -e PKG_CACHE_SIZE=50g \
-  -e ENABLE_STATS=false \
-  -e SKIP_CHOWN=true \
-  -e PKG_LOG_MAX_SIZE=50m \
-  -o fstab="/path/to/containers/pkg-cache /config <pseudofs>" \
-  -o fstab="/path/to/containers/pkg-cache/cache /cache <pseudofs>" \
-  ghcr.io/daemonless/pkg-cache:latest pkg-cache
-```
-
-Save as `run.sh`, then run `sh run.sh`.
-
-**Note**: Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the IPv4 address assigned by the virtual network.
+> [!WARNING]
+> Exposing ports in AppJail means that your service can be reached from remote hosts. If that is not your intention, do not expose the ports and communicate with the service using the jail's IPv4 address or hostname assigned by the virtual network.
+>
+> To avoid exposing ports, just remove the `expose` option in your `appjail-director.yml` or from your command-line arguments.
 
 ### Bastille
 
 > [!WARNING]
-> Bastille's OCI support is **experimental**. It requires `buildah`, shares the host network stack (`inherit`), and persists image-declared volumes under `--data-path`.
+> Bastille's OCI support is **experimental**. It requires `buildah` and shares the host network stack (`inherit`). Mount volumes with `--volume HOST JAIL`; without it, image-declared volumes are stored under `${bastille_volumesdir}/${jail}`.
 
 ```yaml
 services:
   pkg-cache:
+    name: pkg-cache
     image: "ghcr.io/daemonless/pkg-cache:latest"
-    container_name: pkg-cache
-    network_mode: host  # jail shares host networking
+    network:
+      - mode: host
     environment:
       - TZ=UTC
       - PKG_UPSTREAM=pkg.FreeBSD.org
       - PKG_CACHE_SIZE=50g
-      - ENABLE_STATS=false
       - SKIP_CHOWN=true
       - PKG_LOG_MAX_SIZE=50m
-```
-
-Save as `podman-compose.yml`, then run `bastille up`. Or via CLI:
-
-```bash
-bastille create -O \
-  --env TZ=UTC \
-  --env PKG_UPSTREAM=pkg.FreeBSD.org \
-  --env PKG_CACHE_SIZE=50g \
-  --env ENABLE_STATS=false \
-  --env SKIP_CHOWN=true \
-  --env PKG_LOG_MAX_SIZE=50m \
-  --data-path /path/to/containers/pkg-cache \
-  pkg-cache ghcr.io/daemonless/pkg-cache:latest inherit
-```
-
-### Ansible
-
-```yaml
-- name: Deploy pkg-cache
-  containers.podman.podman_container:
-    name: pkg-cache
-    image: "ghcr.io/daemonless/pkg-cache:latest"
-    state: started
-    restart_policy: always
-    env:
-      TZ: "UTC"
-      PKG_UPSTREAM: "pkg.FreeBSD.org"
-      PKG_CACHE_SIZE: "50g"
-      ENABLE_STATS: "false"
-      SKIP_CHOWN: "true"
-      PKG_LOG_MAX_SIZE: "50m"
-    ports:
-      - "80:80"
-      - "7890:7890"
     volumes:
-      - "/path/to/containers/pkg-cache:/config"
-      - "/path/to/containers/pkg-cache/cache:/cache"
+      - "/containers/pkg-cache:/config"
+      - "/containers/pkg-cache/cache:/cache"
 ```
 
-Save as `pkg-cache-deploy.yaml`, then run `ansible-playbook pkg-cache-deploy.yaml`.
+Save as `bastille-compose.yml`, then run `bastille up`.
 
 Access at: `http://localhost:80`
 
@@ -231,24 +153,22 @@ Access at: `http://localhost:80`
 |----------|---------|-------------|
 | `TZ` | `UTC` | Timezone for the container |
 | `PKG_UPSTREAM` | `pkg.FreeBSD.org` | FreeBSD pkg mirror to proxy, e.g. pkg1.us.freebsd.org or pkg0.eu.freebsd.org. Defaults to the primary pkg.FreeBSD.org. |
-| `PKG_CACHE_SIZE` | `50g` | Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. 10g is plenty for light use; keep the /cache volume at least this big. |
-| `ENABLE_STATS` | `false` | Set to true to enable the GoAccess real-time stats dashboard on port 7890. |
+| `PKG_CACHE_SIZE` | `50g` | Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. Keep the /cache volume at least this big. |
 | `SKIP_CHOWN` | `true` | Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts. |
-| `PKG_LOG_MAX_SIZE` | `50m` | Size cap for each on-disk log in /config/log (access.log, error.log, goaccess.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; GoAccess keeps full history in its persisted db regardless. |
+| `PKG_LOG_MAX_SIZE` | `50m` | Size cap for each on-disk log in /config/log (access.log, error.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; the stats totals are kept separately and survive rotation. |
 
 ### Volumes
 
 | Path | Description |
 |------|-------------|
-| `/config` | Logs, generated stats storage (log/, stats/), and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts. |
-| `/cache` | Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G; 10G is fine for light use). |
+| `/config` | Logs (log/), stats totals (stats/) and the startup ownership marker (.chown_done). Mount as a persistent volume so the chown is skipped on later starts. |
+| `/cache` | Package cache storage (proxy_cache). Size to match max_size in nginx.conf (default 50G). |
 
 ### Ports
 
 | Port | Protocol | Description |
 |------|----------|-------------|
-| `80` | TCP | HTTP — pkg clients point their FreeBSD.conf url here |
-| `7890` | TCP | GoAccess stats dashboard (HTML) — enabled via ENABLE_STATS=true |
+| `80` | TCP | HTTP — pkg clients point their FreeBSD.conf url here; browsers get the stats page |
 
 ### How it works
 
@@ -286,7 +206,14 @@ vulnerability database at `/vuxml/`:
 echo 'VULNXML_SITE = "http://<cache-host>/vuxml/vuln.xml.xz";' >> /usr/local/etc/pkg.conf
 ```
 
-No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — 10G is plenty for a handful of hosts/images, bump it up if you're caching a large fleet).
+No nginx config is required; the appliance renders its managed config at startup from environment variables. Size the `/cache` volume to at least `PKG_CACHE_SIZE` (default 50G — a full set of packages for one FreeBSD release and arch is around 10G).
+
+### Stats
+
+Open `http://<cache-host>/` in a browser. The landing page shows the hit
+rate, bytes served from cache versus fetched upstream, cache disk usage,
+top clients and the most recent requests, refreshed every few seconds.
+Nothing to enable; the same numbers are at `/stats.json`.
 
 
 **Architectures:** amd64, aarch64
