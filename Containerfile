@@ -29,16 +29,9 @@ RUN mkdir -p /app && echo "${APP_VER}" > /app/version
 # Copy appliance root filesystem. The nginx s6 service comes from nginx-base;
 # this image renders the managed proxy config at startup.
 COPY root/ /
-
-RUN chmod +x \
-    /etc/cont-init.d/20-pkg-cache-init \
-    /etc/services.d/pkg-cache-access-log/run \
-    /etc/services.d/pkg-cache-error-log/run \
-    /etc/services.d/pkg-cache-logrotate/run \
-    /etc/services.d/pkg-cache-stats/run
+RUN chmod +x /daemonless/libexec/* /daemonless/init.d/*
 
 EXPOSE 80
 
 # Logs, generated stats, and cache storage
 VOLUME ["/config", "/cache"]
-

@@ -1,0 +1,7 @@
+name = "pkg-cache-access-log";
+provides = ["pkg-cache-access-log"];
+type = "simple";
+enable = true;
+command = "/daemonless/libexec/pkg-cache-access-log";
+process { env_file = "/run/rcd.env"; }
+restart { policy = "always"; max_retries = 0; delay = 5000; backoff = "none"; }

@@ -10,7 +10,7 @@ INTERVAL=5
 if [ "$(id -u)" = 0 ]; then
     mkdir -p "$STATS"
     chown bsd:bsd "$STATS" 2>/dev/null || true
-    exec s6-setuidgid bsd /bin/sh "$0"
+    exec dsu bsd /bin/sh "$0"
 fi
 
 STARTED=$(date +%s)

@@ -1,0 +1,7 @@
+name = "pkg-cache-logrotate";
+provides = ["pkg-cache-logrotate"];
+type = "simple";
+enable = true;
+command = "/daemonless/libexec/pkg-cache-logrotate";
+process { env_file = "/run/rcd.env"; }
+restart { policy = "always"; max_retries = 0; delay = 5000; backoff = "none"; }
