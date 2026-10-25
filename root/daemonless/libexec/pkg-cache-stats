@@ -65,6 +65,7 @@ while true; do
     FILENAME == rfile {
         st = $2; gsub(/[\[\]]/, "", st); b = $7; sub(/b$/, "", b)
         nr++; r_ip[nr] = $1; r_st[nr] = st; r_path[nr] = $4; r_code[nr] = $6; r_b[nr] = b + 0
+        r_repo[nr] = (NF >= 8 ? $8 : "freebsd")
         next
     }
     # access.log line: ip [STATUS] "METHOD path HTTP/x" code NNNb
@@ -76,6 +77,12 @@ while true; do
         c["req_" s]++; c["bytes_" s] += b; c["req_total"]++; c["bytes_total"] += b
         if (!("since" in c)) c["since"] = now
         creq[$1]++; cbytes[$1] += b
+        # Per repository family; lines from before the field are FreeBSD.
+        repo = (NF >= 8 ? $8 : "freebsd")
+        c["repo_req_" repo]++; c["repo_bytes_" repo] += b
+        if (s == "hit" || s == "stale" || s == "revalidated" || s == "updating") {
+            c["repo_cached_" repo]++; c["repo_cachedbytes_" repo] += b
+        }
     }
     END {
         for (k in c) printf "%s %.0f\n", k, c[k] > cfile
@@ -87,6 +94,11 @@ while true; do
         for (i = 1; i <= 10; i++) printf "%s\"%s\":%.0f", (i > 1 ? "," : ""), keys[i], c["req_" keys[i]] + 0 > out
         printf "},\"bytes\":{" > out
         for (i = 1; i <= 10; i++) printf "%s\"%s\":%.0f", (i > 1 ? "," : ""), keys[i], c["bytes_" keys[i]] + 0 > out
+        printf "},\"repos\":{" > out
+        split("freebsd apt dnf apk pacman", repos, " ")
+        for (i = 1; i <= 5; i++)
+            printf "%s\"%s\":{\"requests\":%.0f,\"cached\":%.0f,\"bytes\":%.0f,\"cached_bytes\":%.0f}", (i > 1 ? "," : ""), repos[i], \
+                c["repo_req_" repos[i]] + 0, c["repo_cached_" repos[i]] + 0, c["repo_bytes_" repos[i]] + 0, c["repo_cachedbytes_" repos[i]] + 0 > out
         printf "},\"clients\":[" > out
         for (i = 1; i <= 10; i++) {                 # top 10 by requests
             best = ""
@@ -97,7 +109,7 @@ while true; do
         }
         printf "],\"recent\":[" > out
         for (i = nr; i >= 1; i--)
-            printf "%s{\"ip\":\"%s\",\"status\":\"%s\",\"path\":\"%s\",\"code\":%d,\"bytes\":%.0f}", (i < nr ? "," : ""), js(r_ip[i]), js(r_st[i]), js(r_path[i]), r_code[i], r_b[i] > out
+            printf "%s{\"ip\":\"%s\",\"status\":\"%s\",\"path\":\"%s\",\"code\":%d,\"bytes\":%.0f,\"repo\":\"%s\"}", (i < nr ? "," : ""), js(r_ip[i]), js(r_st[i]), js(r_path[i]), r_code[i], r_b[i], js(r_repo[i]) > out
         printf "]}\n" > out
     }' "$STATS/counters" "$STATS/clients" "$STATS/recent.log" "$STATS/new.log" \
     && mv -f "$STATS/stats.json.tmp" "$STATS/stats.json" \

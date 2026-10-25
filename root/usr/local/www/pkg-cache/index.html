@@ -3,156 +3,191 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Daemonless pkg cache</title>
+<title>Package cache</title>
 <link rel="icon" type="image/png" href="/favicon.png">
+<script>
+  // The theme fjord and the proxy use, before paint: the stored choice,
+  // else the OS. One key across the three, so a browser agrees with itself.
+  (function () {
+    var t;
+    try { t = localStorage.getItem('fjord-theme'); } catch (e) {}
+    if (t !== 'light' && t !== 'dark') {
+      t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
 <style>
+  /* fjord's palette, token for token (dark base, light under data-theme),
+   * fjord's scale: 14 px body, 12 px hints, 2xl bold page title. */
   :root {
+    --bg: #1d1d20; --card: #28282c; --border: #3b3b40; --inset: #161619;
+    --fg: #fff; --fg-body: oklch(92.9% 0.013 255.508); --fg-secondary: oklch(86.9% 0.022 252.894);
+    --muted: oklch(70.4% 0.04 256.788); --dim: oklch(55.4% 0.046 257.417);
+    --accent: #3584e4; --accent-hover: #4a90e9; --accent-soft: #1f3550; --accent-soft-fg: #9cc3ff;
+    --success: #33d17a; --warning: #f8e45c; --danger: #ed333b; --chip: #3b3b40; --chip-fg: oklch(86.9% 0.022 252.894);
     color-scheme: dark;
-    --bg: #0a0e17;
-    --panel: #11161f;
-    --border: #232a38;
-    --text: #d7dce5;
-    --muted: #8893a6;
-    --accent: #5fb3ff;
-    --ok: #4cd787;
-    --warn: #f0b35a;
+  }
+  :root[data-theme='light'] {
+    --bg: #f6f6f8; --card: #fff; --border: #dcdce1; --inset: #f0f0f3;
+    --fg: #121217; --fg-body: #2a2a31; --fg-secondary: #45454e; --muted: #61616b; --dim: #7c7c87;
+    --accent: #3584e4; --accent-hover: #1c71d8; --accent-soft: #eaf1fb; --accent-soft-fg: #174a96;
+    --success: #26a269; --warning: #e5a50a; --danger: #c01c28; --chip: #e8e8ec; --chip-fg: #45454e;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 40px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-  .dot {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: var(--ok); box-shadow: 0 0 8px var(--ok); flex-shrink: 0;
-  }
-  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-  .tagline { color: var(--muted); margin: 0 0 28px; }
-  .tagline span { color: var(--text); }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
-  .tile, section {
-    border: 1px solid var(--border); background: var(--panel);
-    border-radius: 10px; padding: 18px 20px;
-  }
-  section { margin-bottom: 12px; }
-  .tile h2, section h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--muted); margin: 0 0 8px; font-weight: 600;
-  }
-  .big { font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; }
-  .big small { font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 4px; }
-  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  .bar { height: 6px; background: #060a11; border-radius: 3px; margin-top: 10px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
-  .bar.ok i { background: var(--ok); }
-  .bar.full i { background: var(--warn); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  body { margin: 0; background: var(--bg); color: var(--fg-body); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Cantarell, "Noto Sans", sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .bar-top { display: flex; align-items: center; gap: 10px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .12em; color: var(--fg); }
+  .brand b { color: var(--accent); font-weight: 700; }
+  .bar-top .theme { margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); border-radius: 8px; cursor: pointer; }
+  .bar-top .theme:hover { color: var(--fg); background: var(--chip); }
+  main { max-width: 960px; padding: 24px 24px 40px; display: flex; flex-direction: column; gap: 24px; }
+  @media (min-width: 768px) { main { padding-left: 32px; padding-right: 32px; } }
+  h1 { margin: 0; font-size: 24px; font-weight: 700; color: var(--fg); line-height: 1.25; }
+  h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--fg-secondary); }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .status { display: flex; align-items: center; gap: 12px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+  .dot.warn { background: transparent; border: 3px solid var(--warning); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { padding: 14px 16px; }
+  .tile h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .big { font-size: 26px; font-weight: 700; color: var(--fg); line-height: 1.15; }
+  .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .track { height: 6px; background: var(--inset); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .track i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .track.ok i { background: var(--success); } .track.full i { background: var(--warning); }
+  .rows > div { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .rows > div:last-child { border-bottom: 0; }
+  .rows .name { flex: 1 1 200px; min-width: 0; }
+  .rows .name b { display: block; color: var(--fg); font-weight: 600; }
+  .rows .name span { display: block; font-size: 12px; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--chip-fg); white-space: nowrap; }
+  .chip.on { background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--success); }
+  .num { font-variant-numeric: tabular-nums; color: var(--fg-secondary); font-size: 13px; white-space: nowrap; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; overflow-x: auto; }
+  .tab { font: inherit; padding: 8px 16px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .tab:hover { color: var(--fg-body); }
+  .tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 500; }
+  .tab .off { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+  #panel p { margin: 10px 0 8px; } #panel p:first-child { margin-top: 0; }
+  #panel .note { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  #panel code, .offbox code { white-space: nowrap; background: var(--inset); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  .cmd { position: relative; }
+  .cmd pre { margin: 0; background: var(--inset); border: 1px solid var(--border); border-radius: 6px; padding: 12px 84px 12px 14px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; color: var(--fg-body); white-space: pre; }
+  .copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: 12px; font-weight: 500; color: var(--accent-soft-fg); background: var(--accent-soft); border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .copy.done { color: var(--success); }
+  @media (max-width: 640px) { .cmd pre { padding: 40px 14px 12px; } }
+  .offbox { border: 1px dashed var(--border); border-radius: 8px; padding: 14px 16px; }
+  .offbox h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--fg); }
+  .offbox ol { margin: 8px 0 0; padding-left: 20px; } .offbox li { margin: 4px 0; }
+  details.card { padding: 0 16px; }
+  details.card summary { cursor: pointer; padding: 12px 0; font-weight: 600; color: var(--fg-secondary); list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.card summary::before { content: "›"; display: inline-block; transition: transform .15s; color: var(--muted); }
+  details[open].card summary::before { transform: rotate(90deg); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 4px 0 16px; }
   @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  th:last-child, td:last-child { padding-right: 0; }
-  th { color: var(--muted); font-weight: 500; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  td.path { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
-  td.path b { color: var(--text); font-weight: 500; }
+  th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:last-child, td:last-child { padding-right: 0; } th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  td.path { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--muted); } td.path b { color: var(--fg-body); font-weight: 500; }
   tr:last-child td { border-bottom: 0; }
   .st { display: inline-block; min-width: 54px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
-  .st-hit, .st-stale, .st-revalidated, .st-updating { color: var(--ok); }
-  .st-miss, .st-expired, .st-bypass { color: var(--warn); }
-  .st-error { color: #ef6a6a; }
+  .st-hit, .st-stale, .st-revalidated, .st-updating { color: var(--success); } .st-miss, .st-expired, .st-bypass { color: var(--warning); } .st-error { color: var(--danger); }
   .empty { color: var(--muted); font-size: 13px; }
-  pre {
-    background: #060a11; border: 1px solid var(--border); border-radius: 6px;
-    padding: 14px 16px; overflow-x: auto; margin: 0;
-    font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .var { color: var(--accent); font-weight: 600; }
-  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-  details[open] summary { margin-bottom: 12px; }
-  footer { color: var(--muted); font-size: 12px; margin-top: 24px; display: flex; gap: 16px; flex-wrap: wrap; }
-  footer a { color: var(--muted); }
+  footer { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  footer a { color: var(--dim); }
 </style>
 </head>
 <body>
+<div class="bar-top">
+  <span class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+    <span><b>P</b>ACKAGE CACHE</span>
+  </span>
+  <button class="theme" id="theme" title="Switch theme" aria-label="Switch theme">
+    <svg id="theme-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    <svg id="theme-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  </button>
+</div>
 <main>
-  <header>
-    <span class="dot" id="dot"></span>
-    <h1>Daemonless pkg cache</h1>
-  </header>
-  <p class="tagline">Proxying <span id="upstream">…</span> · <span id="since"></span></p>
+  <div>
+    <h1>Package cache</h1>
+    <div class="status" style="margin-top:8px"><span class="dot" id="dot"></span><span id="line">Checking…</span></div>
+  </div>
 
   <div class="tiles">
-    <div class="tile">
-      <h2>Hit rate</h2>
+    <div class="card tile">
+      <h3>Served from cache</h3>
       <div class="big" id="hitrate">–</div>
-      <div class="sub" id="hitsub">no requests yet</div>
-      <div class="bar ok"><i id="hitbar"></i></div>
+      <div class="hint" id="hitsub">no requests yet</div>
+      <div class="track ok"><i id="hitbar"></i></div>
     </div>
-    <div class="tile">
-      <h2>Served from cache</h2>
+    <div class="card tile">
+      <h3>Bandwidth saved</h3>
       <div class="big" id="bytes-hit">0 B</div>
-      <div class="sub" id="bytes-hit-sub">bandwidth saved</div>
+      <div class="hint" id="bytes-miss-sub">nothing fetched yet</div>
     </div>
-    <div class="tile">
-      <h2>Fetched upstream</h2>
-      <div class="big" id="bytes-miss">0 B</div>
-      <div class="sub" id="bytes-miss-sub">first-time and expired fetches</div>
-    </div>
-    <div class="tile">
-      <h2>Cache disk</h2>
+    <div class="card tile">
+      <h3>Disk</h3>
       <div class="big" id="disk">0 B<small>used</small></div>
-      <div class="sub" id="disk-sub"></div>
-      <div class="bar" id="diskbarwrap"><i id="diskbar"></i></div>
+      <div class="hint" id="disk-sub"></div>
+      <div class="track" id="diskbarwrap"><i id="diskbar"></i></div>
     </div>
   </div>
 
-  <div class="grid2">
-    <section>
-      <h2>Requests by cache status</h2>
-      <table id="status"><tbody></tbody></table>
-    </section>
-    <section>
-      <h2>Top clients</h2>
-      <table id="clients"><tbody></tbody></table>
-    </section>
-  </div>
-
   <section>
-    <h2>Recent requests</h2>
-    <table id="recent"><tbody></tbody></table>
+    <h2>Use it from</h2>
+    <div class="card" style="padding:14px 16px 16px">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div id="panel"></div>
+    </div>
   </section>
 
   <section>
-    <details>
-      <summary>Configure a client</summary>
-      <p>Save as <code>/usr/local/etc/pkg/repos/FreeBSD.conf</code>:</p>
-      <pre>FreeBSD: {
-  url: "http://<span id="cache-host">&lt;cache-host&gt;</span>/${ABI}/<span class="var">quarterly</span>",
-  mirror_type: "none",
-  signature_type: "fingerprints",
-  fingerprints: "/usr/share/keys/pkg",
-  enabled: yes
-}</pre>
-      <p>The cache proxies whatever path the client requests — swap <span class="var">quarterly</span> for <span class="var">latest</span> to track rolling packages instead.</p>
-    </details>
+    <h2>What it caches</h2>
+    <div class="card rows" id="families"></div>
+    <p class="hint" style="margin:8px 0 0">Packages are kept a year; catalogs and indexes a minute, so clients keep seeing updates. Signatures still verify on the client.</p>
   </section>
+
+  <details class="card">
+    <summary>Details: requests, clients, recent fetches</summary>
+    <div class="grid2">
+      <div><h2>Requests by cache status</h2><table id="status"><tbody></tbody></table></div>
+      <div><h2>Top clients</h2><table id="clients"><tbody></tbody></table></div>
+    </div>
+    <div style="padding-bottom:16px"><h2>Recent requests</h2><table id="recent"><tbody></tbody></table></div>
+  </details>
 
   <footer>
+    <span id="since"></span>
     <a href="/stats.json">stats.json</a>
     <a href="/healthz">healthz</a>
     <a href="https://daemonless.io/images/pkg-cache/">daemonless.io/images/pkg-cache</a>
   </footer>
 </main>
 <script>
-  document.getElementById("cache-host").textContent = location.hostname;
   const $ = id => document.getElementById(id);
   const CACHED = ["hit", "stale", "revalidated", "updating"];
   const ORDER = ["hit", "miss", "expired", "stale", "revalidated", "updating", "bypass", "other", "error"];
+
+  // Theme toggle, fjord's way: the icon is the theme you switch to.
+  function paintTheme() {
+    const dark = document.documentElement.getAttribute("data-theme") !== "light";
+    $("theme-sun").hidden = !dark; $("theme-moon").hidden = dark;
+  }
+  $("theme").addEventListener("click", () => {
+    const t = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem("fjord-theme", t); } catch (e) {}
+    paintTheme();
+  });
+  paintTheme();
 
   function bytes(n) {
     const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0;
@@ -172,43 +207,194 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
   function st(s) { return '<span class="st st-' + s.toLowerCase() + '">' + esc(s) + "</span>"; }
 
+  const FAMILY = {
+    freebsd: {name: "FreeBSD", covers: "pkg", env: ""},
+    apt: {name: "Debian and Ubuntu", covers: "apt", env: "PKG_CACHE_APT"},
+    dnf: {name: "Fedora and EPEL", covers: "dnf", env: "PKG_CACHE_DNF"},
+    apk: {name: "Alpine", covers: "apk", env: "PKG_CACHE_APK"},
+    pacman: {name: "Arch Linux", covers: "pacman", env: "PKG_CACHE_PACMAN"},
+  };
+  let repos = {freebsd: true};
+  let last = null;
+
   function render(d) {
+    last = d;
     const r = d.requests, b = d.bytes;
     const cached = CACHED.reduce((n, k) => n + (r[k] || 0), 0);
     const cachedBytes = CACHED.reduce((n, k) => n + (b[k] || 0), 0);
     const served = r.total - (r.error || 0);
     const fetched = served - cached, fetchedBytes = b.total - cachedBytes - (b.error || 0);
-
-    $("upstream").textContent = d.upstream;
-    $("since").textContent = d.since ? "counting for " + dur(d.since) : "up for " + dur(d.started);
+    const on = Object.keys(FAMILY).filter(k => repos[k]).map(k => FAMILY[k].name);
+    const pct = served ? 100 * cached / served : 0;
+    const few = served < 10;
+    $("line").textContent = "All good: caching " + on.join(", ") + (served ? (few ? "; " + served + (served === 1 ? " request" : " requests") + " so far" : "; " + pct.toFixed(0) + " % of requests served from here") : "; no requests yet") + ".";
+    $("since").textContent = (d.since ? "Counting for " + dur(d.since) : "Up for " + dur(d.started)) + " · upstream " + d.upstream;
     if (served) {
-      const pct = 100 * cached / served;
-      $("hitrate").innerHTML = pct.toFixed(pct >= 99.5 ? 1 : 0) + "<small>%</small>";
-      $("hitsub").textContent = cached.toLocaleString() + " of " + served.toLocaleString() + " requests" + (r.error ? ", " + r.error.toLocaleString() + " upstream errors" : "");
+      $("hitrate").innerHTML = few ? cached + "<small>of " + served + "</small>" : pct.toFixed(pct >= 99.5 ? 1 : 0) + "<small>%</small>";
+      $("hitsub").textContent = (few ? "a rate shows after 10 requests" : cached.toLocaleString() + " of " + served.toLocaleString() + " requests") + (r.error ? ", " + r.error.toLocaleString() + " upstream errors" : "");
       $("hitbar").style.width = pct + "%";
     }
     $("bytes-hit").textContent = bytes(cachedBytes);
-    $("bytes-miss").textContent = bytes(fetchedBytes);
-    $("bytes-miss-sub").textContent = fetched.toLocaleString() + " requests went upstream";
+    $("bytes-miss-sub").textContent = bytes(fetchedBytes) + " fetched upstream in " + fetched.toLocaleString() + " requests";
     const diskPct = d.cache.max_bytes ? 100 * d.cache.bytes / d.cache.max_bytes : 0;
     $("disk").innerHTML = bytes(d.cache.bytes) + "<small>used</small>";
-    $("disk-sub").textContent = diskPct.toFixed(0) + "% of " + bytes(d.cache.max_bytes) + " limit · " + d.cache.objects.toLocaleString() + " objects";
+    $("disk-sub").textContent = diskPct.toFixed(0) + " % of " + bytes(d.cache.max_bytes) + " · " + d.cache.objects.toLocaleString() + " files";
     $("diskbar").style.width = Math.min(100, diskPct) + "%";
     $("diskbarwrap").classList.toggle("full", diskPct >= 95);
 
     const stRows = ORDER.filter(k => r[k]).map(k => row([
       {html: st(k.toUpperCase())}, {html: r[k].toLocaleString(), cls: "num"}, {html: bytes(b[k] || 0), cls: "num"}]));
     $("status").tBodies[0].innerHTML = stRows.join("") || row([{html: '<span class="empty">No proxied requests yet</span>'}]);
-
     $("clients").tBodies[0].innerHTML = d.clients.map(c => row([
       {html: esc(c.ip)}, {html: c.requests.toLocaleString(), cls: "num"}, {html: bytes(c.bytes), cls: "num"}
     ])).join("") || row([{html: '<span class="empty">No clients yet</span>'}]);
-
     $("recent").tBodies[0].innerHTML = d.recent.map(x => {
       const p = x.path.replace(/^\/+/, ""), i = p.lastIndexOf("/");
       const path = i < 0 ? "<b>" + esc(p) + "</b>" : esc(p.slice(0, i + 1)) + "<b>" + esc(p.slice(i + 1)) + "</b>";
       return row([{html: st(x.status)}, {html: path, cls: "path"}, {html: esc(x.ip)}, {html: x.code, cls: "num"}, {html: bytes(x.bytes), cls: "num"}]);
-    }).join("") || row([{html: '<span class="empty">Nothing yet — point a pkg client at this host</span>'}]);
+    }).join("") || row([{html: '<span class="empty">Nothing yet: set up a client above</span>'}]);
+    renderFamilies(d);
+  }
+
+  // One row per family: on or off, what it has done, how to turn it on.
+  function renderFamilies(d) {
+    const by = (d && d.repos) || {};
+    $("families").innerHTML = Object.keys(FAMILY).map(k => {
+      const f = FAMILY[k], r = by[k] || {requests: 0, cached: 0, cached_bytes: 0};
+      const done = r.requests >= 10 ? r.requests.toLocaleString() + " requests, " + Math.round(100 * r.cached / r.requests) + " % from here, " + bytes(r.cached_bytes) + " served" : r.requests ? r.requests + (r.requests === 1 ? " request" : " requests") + " so far" : "no requests yet";
+      const how = repos[k] ? "" : '<span>Off. Turn on with <code>' + f.env + '=true</code> in the stack’s settings, then apply.</span>';
+      return '<div><div class="name"><b>' + esc(f.name) + '</b><span>' + esc(f.covers) + (repos[k] ? " · " + done : "") + "</span>" + how + "</div>" +
+        (repos[k] ? '<span class="chip on">On</span>' : '<span class="chip">Off</span>') + "</div>";
+    }).join("");
+  }
+
+  // Client setup, one tab per distribution. location.host carries the port.
+  const H = location.host;
+  const IN_BUILD = "In a Containerfile, make it the first <code>RUN</code>, before anything is installed.";
+  const DISTROS = [
+    {id: "freebsd", name: "FreeBSD", family: "freebsd", steps: () => [
+      {text: "Point pkg at the cache:", cmd:
+`mkdir -p /usr/local/etc/pkg/repos
+cat > /usr/local/etc/pkg/repos/FreeBSD.conf <<'EOF'
+FreeBSD: {
+  url: "http://${H}/\${ABI}/quarterly",
+  mirror_type: "none",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkg",
+  enabled: yes
+}
+EOF
+pkg update`},
+      {note: "Swap <code>quarterly</code> for <code>latest</code> to track rolling packages. Packages are still checked against FreeBSD's keys."},
+      {text: "For <code>pkg audit</code>, fetch the vulnerability database through the cache too:", cmd:
+`echo 'VULNXML_SITE = "http://${H}/vuxml/vuln.xml.xz";' >> /usr/local/etc/pkg.conf`},
+    ]},
+    {id: "debian", name: "Debian", family: "apt", steps: () => [
+      {text: "Point apt at the cache (Debian 12 and later):", cmd:
+`sed -i 's|http://deb.debian.org/|http://${H}/|' /etc/apt/sources.list.d/debian.sources
+apt-get update`},
+      {note: "Debian 11 and older keep the list in <code>/etc/apt/sources.list</code>: run the same <code>sed</code> on that file. " + IN_BUILD},
+    ]},
+    {id: "ubuntu", name: "Ubuntu", family: "apt", steps: () => [
+      {text: "Point apt at the cache (Ubuntu 24.04 and later):", cmd:
+`sed -i -e 's|http://archive.ubuntu.com/ubuntu/|http://${H}/ubuntu/|' \\
+  -e 's|http://security.ubuntu.com/ubuntu/|http://${H}/ubuntu-security/|' \\
+  -e 's|http://ports.ubuntu.com/ubuntu-ports/|http://${H}/ubuntu-ports/|' \\
+  /etc/apt/sources.list.d/ubuntu.sources
+apt-get update`},
+      {note: "Ubuntu 22.04 and older keep the list in <code>/etc/apt/sources.list</code>: run the same <code>sed</code> on that file. " + IN_BUILD},
+    ]},
+    {id: "fedora", name: "Fedora", family: "dnf", steps: () => [
+      {text: "Point dnf at the cache:", cmd:
+`sed -i -e 's|^metalink=|#metalink=|' \\
+  -e 's|^#baseurl=http://download.example/pub/fedora/linux|baseurl=http://${H}/fedora|' \\
+  /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo
+dnf makecache`},
+      {note: "Packages are still checked against Fedora's keys. The <code>fedora-cisco-openh264</code> repository is Cisco's and keeps going straight to Cisco. " + IN_BUILD},
+    ]},
+    {id: "epel", name: "EPEL", family: "dnf", steps: () => [
+      {text: "Once <code>epel-release</code> is installed, point EPEL at the cache:", cmd:
+`sed -i -e 's|^metalink=|#metalink=|' \\
+  -e 's|^#baseurl=https://download.example/pub/epel|baseurl=http://${H}/epel|' \\
+  /etc/yum.repos.d/epel.repo
+dnf makecache`},
+      {note: "Only EPEL comes through the cache; AlmaLinux, Rocky or RHEL's own repositories go to their mirrors as before. " + IN_BUILD},
+    ]},
+    {id: "alpine", name: "Alpine", family: "apk", steps: () => [
+      {text: "Point apk at the cache:", cmd:
+`sed -i 's|https://dl-cdn.alpinelinux.org/alpine|http://${H}/alpine|' /etc/apk/repositories
+apk update`},
+      {note: "Packages are still checked against Alpine's keys. " + IN_BUILD},
+    ]},
+    {id: "arch", name: "Arch Linux", family: "pacman", steps: () => [
+      {text: "Make the cache pacman's only mirror:", cmd:
+`echo 'Server = http://${H}/archlinux/$repo/os/$arch' > /etc/pacman.d/mirrorlist
+pacman -Syu`},
+      {note: "Packages are still checked against the Arch keyring. " + IN_BUILD},
+    ]},
+  ];
+
+  let tab = "freebsd";
+  try { tab = localStorage.getItem("pkg-cache.tab") || tab; } catch (e) {}
+  if (!DISTROS.some(d => d.id === tab)) tab = "freebsd";
+
+  function renderSetup() {
+    $("tabs").innerHTML = DISTROS.map(d => {
+      const on = repos[d.family];
+      return '<button class="tab" role="tab" data-id="' + d.id + '" aria-selected="' + (d.id === tab) + '">' +
+        esc(d.name) + (on ? "" : '<span class="off">off</span>') + "</button>";
+    }).join("");
+    const d = DISTROS.find(x => x.id === tab);
+    const f = FAMILY[d.family];
+    if (repos[d.family]) {
+      $("panel").innerHTML = d.steps().map(s => s.cmd
+        ? (s.text ? "<p>" + s.text + "</p>" : "") + '<div class="cmd"><pre>' + esc(s.cmd) + '</pre><button class="copy">Copy</button></div>'
+        : '<p class="note">' + s.note + "</p>").join("");
+      return;
+    }
+    $("panel").innerHTML = '<div class="offbox">' +
+      "<h3>" + esc(d.name) + " is not cached here yet</h3>" +
+      '<div class="note">Turn on ' + esc(f.covers) + " caching and " + esc(f.name) + " come through too. The command for " + esc(d.name) + " shows here once it is on.</div>" +
+      "<ol>" +
+      "<li><b>In fjord:</b> open the cache's stack, Settings, set <code>" + f.env + "=true</code>, Save and apply.</li>" +
+      "<li><b>With compose:</b> the same line under <code>environment:</code>, then <code>podman-compose up -d</code>.</li>" +
+      "</ol></div>";
+  }
+
+  $("tabs").addEventListener("click", e => {
+    const b = e.target.closest(".tab");
+    if (!b) return;
+    tab = b.dataset.id;
+    try { localStorage.setItem("pkg-cache.tab", tab); } catch (e) {}
+    renderSetup();
+  });
+
+  // Clipboard needs a secure context, and this page is plain HTTP on the
+  // LAN: fall back to selecting the text and execCommand.
+  $("panel").addEventListener("click", async e => {
+    const b = e.target.closest(".copy");
+    if (!b) return;
+    const text = b.previousElementSibling.textContent;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (err) {
+      const t = document.createElement("textarea");
+      t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select();
+      try { ok = document.execCommand("copy"); } catch (err2) {}
+      t.remove();
+    }
+    b.textContent = ok ? "Copied" : "Select and copy";
+    b.classList.toggle("done", ok);
+    setTimeout(() => { b.textContent = "Copy"; b.classList.remove("done"); }, 1600);
+  });
+
+  async function loadRepos() {
+    try {
+      const res = await fetch("/repos.json", {cache: "no-store"});
+      if (res.ok) repos = await res.json();
+    } catch (e) {}
+    renderSetup();
+    if (last) render(last); else renderFamilies(null);
   }
 
   async function refresh() {
@@ -216,13 +402,15 @@
       const res = await fetch("/stats.json", {cache: "no-store"});
       if (!res.ok) throw new Error(res.status);
       render(await res.json());
-      $("dot").style.background = "var(--ok)";
+      $("dot").classList.remove("warn");
     } catch (e) {
-      $("dot").style.background = "var(--warn)";
+      $("dot").classList.add("warn");
+      $("line").textContent = "No statistics yet. The cache is answering; the first numbers appear after the first request.";
     }
   }
+  loadRepos();
   refresh();
-  setInterval(refresh, 10000);
+  setInterval(refresh, 15000);
 </script>
 </body>
 </html>

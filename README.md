@@ -41,6 +41,19 @@ services:
       - PKG_CACHE_SIZE=50g  # Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. Keep the /cache volume at least this big.
       - SKIP_CHOWN=true  # Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts.
       - PKG_LOG_MAX_SIZE=50m  # Size cap for each on-disk log in /config/log (access.log, error.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; the stats totals are kept separately and survive rotation.
+      - PKG_CACHE_APT=${PKG_CACHE_APT:-false}  # Cache apt repositories (Debian and Ubuntu) under /debian/, /debian-security/, /ubuntu/, /ubuntu-security/ and /ubuntu-ports/: true or false.
+      - PKG_CACHE_DNF=${PKG_CACHE_DNF:-false}  # Cache dnf repositories (Fedora and EPEL) under /fedora/ and /epel/: true or false.
+      - PKG_CACHE_APK=${PKG_CACHE_APK:-false}  # Cache Alpine's apk repositories under /alpine/: true or false.
+      - PKG_CACHE_PACMAN=${PKG_CACHE_PACMAN:-false}  # Cache Arch Linux's pacman repositories under /archlinux/: true or false.
+      - PKG_DEBIAN_UPSTREAM=https://deb.debian.org/debian  # Debian mirror for /debian/, as a URL base.
+      - PKG_DEBIAN_SECURITY_UPSTREAM=https://deb.debian.org/debian-security  # Debian security mirror for /debian-security/, as a URL base.
+      - PKG_UBUNTU_UPSTREAM=https://archive.ubuntu.com/ubuntu  # Ubuntu mirror for /ubuntu/ (amd64), as a URL base, e.g. https://us.archive.ubuntu.com/ubuntu.
+      - PKG_UBUNTU_SECURITY_UPSTREAM=https://security.ubuntu.com/ubuntu  # Ubuntu security mirror for /ubuntu-security/, as a URL base.
+      - PKG_UBUNTU_PORTS_UPSTREAM=https://ports.ubuntu.com/ubuntu-ports  # Ubuntu mirror for /ubuntu-ports/ (arm64 and other architectures), as a URL base.
+      - PKG_FEDORA_UPSTREAM=https://dl.fedoraproject.org/pub/fedora/linux  # Fedora mirror for /fedora/, as a URL base ending at the directory that holds releases/ and updates/. The default is Fedora's master; a mirror near you is kinder, e.g. https://mirror.example.org/fedora/linux. It must answer itself: a mirror that redirects bypasses the cache.
+      - PKG_EPEL_UPSTREAM=https://dl.fedoraproject.org/pub/epel  # EPEL mirror for /epel/, as a URL base.
+      - PKG_ALPINE_UPSTREAM=https://dl-cdn.alpinelinux.org/alpine  # Alpine mirror for /alpine/, as a URL base.
+      - PKG_ARCH_UPSTREAM=https://geo.mirror.pkgbuild.com  # Arch Linux mirror for /archlinux/, as a URL base (the directory that holds core/ and extra/).
     volumes:
       - "/containers/pkg-cache:/config"
       - "/containers/pkg-cache/cache:/cache"
@@ -64,6 +77,19 @@ PKG_UPSTREAM=pkg.FreeBSD.org
 PKG_CACHE_SIZE=50g
 SKIP_CHOWN=true
 PKG_LOG_MAX_SIZE=50m
+PKG_CACHE_APT=${PKG_CACHE_APT:-false}
+PKG_CACHE_DNF=${PKG_CACHE_DNF:-false}
+PKG_CACHE_APK=${PKG_CACHE_APK:-false}
+PKG_CACHE_PACMAN=${PKG_CACHE_PACMAN:-false}
+PKG_DEBIAN_UPSTREAM=https://deb.debian.org/debian
+PKG_DEBIAN_SECURITY_UPSTREAM=https://deb.debian.org/debian-security
+PKG_UBUNTU_UPSTREAM=https://archive.ubuntu.com/ubuntu
+PKG_UBUNTU_SECURITY_UPSTREAM=https://security.ubuntu.com/ubuntu
+PKG_UBUNTU_PORTS_UPSTREAM=https://ports.ubuntu.com/ubuntu-ports
+PKG_FEDORA_UPSTREAM=https://dl.fedoraproject.org/pub/fedora/linux
+PKG_EPEL_UPSTREAM=https://dl.fedoraproject.org/pub/epel
+PKG_ALPINE_UPSTREAM=https://dl-cdn.alpinelinux.org/alpine
+PKG_ARCH_UPSTREAM=https://geo.mirror.pkgbuild.com
 ```
 
 **appjail-director.yml**:
@@ -88,6 +114,19 @@ services:
         - PKG_CACHE_SIZE: !ENV '${PKG_CACHE_SIZE}'
         - SKIP_CHOWN: !ENV '${SKIP_CHOWN}'
         - PKG_LOG_MAX_SIZE: !ENV '${PKG_LOG_MAX_SIZE}'
+        - PKG_CACHE_APT: !ENV '${PKG_CACHE_APT}'
+        - PKG_CACHE_DNF: !ENV '${PKG_CACHE_DNF}'
+        - PKG_CACHE_APK: !ENV '${PKG_CACHE_APK}'
+        - PKG_CACHE_PACMAN: !ENV '${PKG_CACHE_PACMAN}'
+        - PKG_DEBIAN_UPSTREAM: !ENV '${PKG_DEBIAN_UPSTREAM}'
+        - PKG_DEBIAN_SECURITY_UPSTREAM: !ENV '${PKG_DEBIAN_SECURITY_UPSTREAM}'
+        - PKG_UBUNTU_UPSTREAM: !ENV '${PKG_UBUNTU_UPSTREAM}'
+        - PKG_UBUNTU_SECURITY_UPSTREAM: !ENV '${PKG_UBUNTU_SECURITY_UPSTREAM}'
+        - PKG_UBUNTU_PORTS_UPSTREAM: !ENV '${PKG_UBUNTU_PORTS_UPSTREAM}'
+        - PKG_FEDORA_UPSTREAM: !ENV '${PKG_FEDORA_UPSTREAM}'
+        - PKG_EPEL_UPSTREAM: !ENV '${PKG_EPEL_UPSTREAM}'
+        - PKG_ALPINE_UPSTREAM: !ENV '${PKG_ALPINE_UPSTREAM}'
+        - PKG_ARCH_UPSTREAM: !ENV '${PKG_ARCH_UPSTREAM}'
     volumes:
       - pkg-cache: /config
       - pkg-cache_cache: /cache
@@ -136,6 +175,19 @@ services:
       - PKG_CACHE_SIZE=50g
       - SKIP_CHOWN=true
       - PKG_LOG_MAX_SIZE=50m
+      - PKG_CACHE_APT=${PKG_CACHE_APT:-false}
+      - PKG_CACHE_DNF=${PKG_CACHE_DNF:-false}
+      - PKG_CACHE_APK=${PKG_CACHE_APK:-false}
+      - PKG_CACHE_PACMAN=${PKG_CACHE_PACMAN:-false}
+      - PKG_DEBIAN_UPSTREAM=https://deb.debian.org/debian
+      - PKG_DEBIAN_SECURITY_UPSTREAM=https://deb.debian.org/debian-security
+      - PKG_UBUNTU_UPSTREAM=https://archive.ubuntu.com/ubuntu
+      - PKG_UBUNTU_SECURITY_UPSTREAM=https://security.ubuntu.com/ubuntu
+      - PKG_UBUNTU_PORTS_UPSTREAM=https://ports.ubuntu.com/ubuntu-ports
+      - PKG_FEDORA_UPSTREAM=https://dl.fedoraproject.org/pub/fedora/linux
+      - PKG_EPEL_UPSTREAM=https://dl.fedoraproject.org/pub/epel
+      - PKG_ALPINE_UPSTREAM=https://dl-cdn.alpinelinux.org/alpine
+      - PKG_ARCH_UPSTREAM=https://geo.mirror.pkgbuild.com
     volumes:
       - "/containers/pkg-cache:/config"
       - "/containers/pkg-cache/cache:/cache"
@@ -155,6 +207,19 @@ Open `http://<server>:80` from another machine (the server's own browser can't u
 | `PKG_CACHE_SIZE` | `50g` | Max on-disk cache size (nginx max_size), e.g. 10g, 100g, 500g. Keep the /cache volume at least this big. |
 | `SKIP_CHOWN` | `true` | Skip the startup recursive chown of /config and /cache once ownership is recorded in /config/.chown_done (default true). Set false to force a chown on every start. The marker lives in /config, so /config must be a persistent volume for the skip to take effect across restarts. |
 | `PKG_LOG_MAX_SIZE` | `50m` | Size cap for each on-disk log in /config/log (access.log, error.log), e.g. 10m, 50m, 1g. A log past this is rotated away so /config can't fill; the stats totals are kept separately and survive rotation. |
+| `PKG_CACHE_APT` | `${PKG_CACHE_APT:-false}` | Cache apt repositories (Debian and Ubuntu) under /debian/, /debian-security/, /ubuntu/, /ubuntu-security/ and /ubuntu-ports/: true or false. |
+| `PKG_CACHE_DNF` | `${PKG_CACHE_DNF:-false}` | Cache dnf repositories (Fedora and EPEL) under /fedora/ and /epel/: true or false. |
+| `PKG_CACHE_APK` | `${PKG_CACHE_APK:-false}` | Cache Alpine's apk repositories under /alpine/: true or false. |
+| `PKG_CACHE_PACMAN` | `${PKG_CACHE_PACMAN:-false}` | Cache Arch Linux's pacman repositories under /archlinux/: true or false. |
+| `PKG_DEBIAN_UPSTREAM` | `https://deb.debian.org/debian` | Debian mirror for /debian/, as a URL base. |
+| `PKG_DEBIAN_SECURITY_UPSTREAM` | `https://deb.debian.org/debian-security` | Debian security mirror for /debian-security/, as a URL base. |
+| `PKG_UBUNTU_UPSTREAM` | `https://archive.ubuntu.com/ubuntu` | Ubuntu mirror for /ubuntu/ (amd64), as a URL base, e.g. https://us.archive.ubuntu.com/ubuntu. |
+| `PKG_UBUNTU_SECURITY_UPSTREAM` | `https://security.ubuntu.com/ubuntu` | Ubuntu security mirror for /ubuntu-security/, as a URL base. |
+| `PKG_UBUNTU_PORTS_UPSTREAM` | `https://ports.ubuntu.com/ubuntu-ports` | Ubuntu mirror for /ubuntu-ports/ (arm64 and other architectures), as a URL base. |
+| `PKG_FEDORA_UPSTREAM` | `https://dl.fedoraproject.org/pub/fedora/linux` | Fedora mirror for /fedora/, as a URL base ending at the directory that holds releases/ and updates/. The default is Fedora's master; a mirror near you is kinder, e.g. https://mirror.example.org/fedora/linux. It must answer itself: a mirror that redirects bypasses the cache. |
+| `PKG_EPEL_UPSTREAM` | `https://dl.fedoraproject.org/pub/epel` | EPEL mirror for /epel/, as a URL base. |
+| `PKG_ALPINE_UPSTREAM` | `https://dl-cdn.alpinelinux.org/alpine` | Alpine mirror for /alpine/, as a URL base. |
+| `PKG_ARCH_UPSTREAM` | `https://geo.mirror.pkgbuild.com` | Arch Linux mirror for /archlinux/, as a URL base (the directory that holds core/ and extra/). |
 
 ### Volumes
 
@@ -176,6 +241,18 @@ versioned and immutable, so a HIT is always safe. Catalog metadata
 (`meta.conf`, `packagesite.*`, `data.*`) is cached for 1 minute instead,
 so `pkg` keeps resolving the latest updates without serving stale
 catalogs.
+
+### Linux package managers
+
+apt (Debian, Ubuntu), dnf (Fedora, EPEL), apk (Alpine) and pacman (Arch
+Linux) can come through the cache too. Each is off until its switch is
+on: `PKG_CACHE_APT`, `PKG_CACHE_DNF`, `PKG_CACHE_APK`, `PKG_CACHE_PACMAN`.
+They live under their own paths (`/debian/`, `/ubuntu/`, `/fedora/`,
+`/epel/`, `/alpine/`, `/archlinux/`), with the same rules: packages are
+kept, indexes are refreshed every minute, and signatures still verify on
+the client. The landing page has the command for each distribution, with
+this cache's address filled in. Every family shares `PKG_CACHE_SIZE`:
+with Debian, Ubuntu or Fedora on, give it more than FreeBSD alone needs.
 
 ### Pointing clients at the cache
 
