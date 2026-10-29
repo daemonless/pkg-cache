@@ -1,0 +1,3 @@
+#!/bin/sh
+# Master runs as root to bind :80; workers drop to bsd (user bsd; in the config).
+exec nginx -c /run/pkg-cache/nginx.conf -g "daemon off;"

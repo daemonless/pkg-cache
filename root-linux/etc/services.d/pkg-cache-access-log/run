@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /daemonless/libexec/pkg-cache-access-log

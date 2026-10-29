@@ -37,7 +37,8 @@ while true; do
     fi
     tick=$((tick + 1))
 
-    size=$(stat -f %z "$LOG" 2>/dev/null || echo 0)
+    # ls, not stat: stat's flags differ between FreeBSD and Linux.
+    size=$(ls -ln "$LOG" 2>/dev/null | awk '{print $5}'); size=${size:-0}
     [ "$size" -lt "$offset" ] && offset=0          # log was rotated
     if [ "$size" -gt "$offset" ]; then
         tail -c +$((offset + 1)) "$LOG" | head -c $((size - offset)) > "$STATS/new.log"

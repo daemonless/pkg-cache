@@ -1,7 +1,6 @@
 #!/bin/sh
 # Render and start a managed daemonless pkg-cache appliance config.
 mkdir -p /config/log /config/stats /cache /run/pkg-cache
-cp /defaults/nginx.conf /run/pkg-cache/nginx.conf
 
 SIZE="${PKG_CACHE_SIZE:-50g}"
 UPSTREAM="${PKG_UPSTREAM:-pkg.FreeBSD.org}"
@@ -30,9 +29,11 @@ if [ -z "${RESOLVER}" ] || has_newline "${RESOLVER}" || ! printf "%s" "${RESOLVE
     invalid_env PKG_RESOLVER "${RESOLVER}"
 fi
 
-sed -i "" "s/max_size=[^ ;]*/max_size=${SIZE}/" /run/pkg-cache/nginx.conf
-sed -i "" "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" /run/pkg-cache/nginx.conf
-sed -i "" "s/PKG_RESOLVER/${RESOLVER}/" /run/pkg-cache/nginx.conf
+# Not sed -i: FreeBSD's and Linux's take different arguments.
+sed -e "s/max_size=[^ ;]*/max_size=${SIZE}/" \
+    -e "s/PKG_UPSTREAM_HOST/${UPSTREAM}/g" \
+    -e "s/PKG_RESOLVER/${RESOLVER}/" \
+    /defaults/nginx.conf > /run/pkg-cache/nginx.conf
 
 /daemonless/libexec/pkg-cache-repos /run/pkg-cache/repos.conf /run/pkg-cache/repos.json || exit 1
 
