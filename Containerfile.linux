@@ -1,0 +1,28 @@
+# pkg-cache on Linux, built only by dbuild's shared GitHub workflow
+# (build-linux job): Alpine's nginx with the same config template and
+# scripts as the FreeBSD image (root/), supervised by s6. Keep APP_VER with
+# Containerfile.j2's: the manifest adds this image to a tag only when the
+# versions agree.
+FROM alpine:3.24
+ARG APP_VER=1.6
+LABEL org.opencontainers.image.title="Daemonless pkg cache" \
+      org.opencontainers.image.description="Managed pkg caching appliance: speeds up FreeBSD, apt, dnf, apk and pacman package fetches across your hosts and builds." \
+      org.opencontainers.image.source="https://github.com/daemonless/pkg-cache" \
+      org.opencontainers.image.url="https://daemonless.io/images/pkg-cache/" \
+      org.opencontainers.image.licenses="BSD-2-Clause" \
+      org.opencontainers.image.vendor="daemonless" \
+      org.opencontainers.image.authors="daemonless" \
+      io.daemonless.category="Infrastructure" \
+      io.daemonless.port="80" \
+      io.daemonless.volumes="/config,/cache"
+RUN apk add --no-cache nginx s6 ca-certificates tzdata && \
+    addgroup -g 1000 bsd && adduser -D -H -u 1000 -G bsd -s /sbin/nologin bsd && \
+    mkdir -p /app /config /cache /usr/local/etc/nginx && echo "${APP_VER}" > /app/version && \
+    chown -R bsd:bsd /var/lib/nginx
+COPY root/ /
+COPY root-linux/ /
+RUN chmod +x /init /etc/cont-init.d/* /etc/services.d/*/run \
+      /daemonless/libexec/* /daemonless/init.d/*
+EXPOSE 80
+VOLUME ["/config", "/cache"]
+ENTRYPOINT ["/init"]

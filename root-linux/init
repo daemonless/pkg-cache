@@ -1,0 +1,10 @@
+#!/bin/sh
+# Minimal init: PUID/PGID, then the same one-shot scripts as the FreeBSD
+# image (/daemonless/init.d), then s6 supervises the services.
+set -e
+for f in /etc/cont-init.d/* /daemonless/init.d/*; do
+    echo "[init] Running: $f"
+    "$f"
+done
+echo "[init] Initialization complete"
+exec s6-svscan /etc/services.d

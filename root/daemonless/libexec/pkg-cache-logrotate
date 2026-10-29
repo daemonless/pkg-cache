@@ -26,7 +26,8 @@ while true; do
     for f in access.log error.log; do
         p="$LOGDIR/$f"
         [ -f "$p" ] || continue
-        sz=$(stat -f%z "$p" 2>/dev/null || echo 0)
+        # ls, not stat: stat's flags differ between FreeBSD and Linux.
+        sz=$(ls -ln "$p" 2>/dev/null | awk '{print $5}'); sz=${sz:-0}
         if [ "$sz" -gt "$MAX" ]; then
             mv -f "$p" "$p.rotating"
             rotated=1
