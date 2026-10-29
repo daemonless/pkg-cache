@@ -1,0 +1,5 @@
+#!/bin/sh
+# dsu USER CMD...: run CMD as USER, as FreeBSD's base image does.
+u=$1
+shift
+exec s6-setuidgid "$u" "$@"
