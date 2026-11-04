@@ -1,11 +1,11 @@
 {
-  "generated": "2026-10-29T22:07:43Z",
+  "generated": "2026-11-04T17:05:07Z",
   "image": "pkg-cache",
   "tags": {
     "latest-amd64": {
       "app_version": "1.6",
       "arch": "amd64",
-      "generated": "2026-10-29T22:07:14Z",
+      "generated": "2026-11-04T17:04:33Z",
       "packages": {
         "dotnet": [],
         "freebsd": [
