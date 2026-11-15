@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    uses: daemonless/dbuild/.github/workflows/daemonless-build.yaml@main
+    uses: daemonless/dbuild/.github/workflows/daemonless-build.yaml@ci/workflow-shim
     with:
       image_name: pkg-cache
       linux: true
